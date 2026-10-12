@@ -73,23 +73,23 @@ local OB_OK, OB_ERR = pcall(function ()
     -- A new copy refines all of this from its own sightings.
     { entry = 164871, homeZ = ORG, awayZ = { "Tirisfal Glades", "Undercity" },
       name = "Undercity", kind = "zeppelin", x = 1318.1, y = -4658.0,
-      period = 356.286, dwell = 64.0, origin = 1791471571.34, anchor = 1791489385.64,
+      period = 356.2894, dwell = 64.0, origin = 1791471571.34, anchor = 1791489385.64,
       flipFrom = "Undercity", flipTo = "Orgrimmar", flipOffset = 191.1, flipDwell = 64.0 },
     { entry = 175080, homeZ = ORG, awayZ = { "Stranglethorn Vale" },
       name = "Grom'gol", kind = "zeppelin", x = 1360.8, y = -4631.3,
-      period = 303.458, dwell = 64.1, origin = 1791471600.26, anchor = 1791489504.28,
+      period = 303.4377, dwell = 64.1, origin = 1791471600.26, anchor = 1791489504.28,
       flipFrom = "Grom'gol", flipTo = "Orgrimmar", flipOffset = 138.2, flipDwell = 64.1 },
     { entry = 190552, homeZ = ORG, awayZ = { "Badlands" },
       name = "Kargath", kind = "zeppelin", x = 1206.1, y = -4158.7,
-      period = 374.073, dwell = 63.9, origin = 1791471857.57, anchor = 1791489438.99,
+      period = 373.9861, dwell = 63.9, origin = 1791471857.57, anchor = 1791489438.99,
       flipFrom = "Kargath", flipTo = "Orgrimmar", flipOffset = 198.0, flipDwell = 64.2 },
     { entry = 190549, homeZ = ORG, awayZ = { "Mulgore", "Thunder Bluff" },
       name = "Thunder Bluff", kind = "zeppelin", x = 1125.4, y = -4135.0,
-      period = 566.785, dwell = 64.2, origin = 1791472003.14, anchor = 1791490140.28,
+      period = 566.9955, dwell = 64.2, origin = 1791472003.14, anchor = 1791490140.28,
       flipFrom = "Thunder Bluff", flipTo = "Orgrimmar", flipOffset = 275.8, flipDwell = 64.0 },
     { entry = 190550, homeZ = ORG, awayZ = { "The Hinterlands" },
       name = "Sparkwater", kind = "boat", x = 876.1, y = -5204.1, boat = true,
-      period = 245.030, dwell = 44.1, origin = 1791471573.69, anchor = 1791489460.91,
+      period = 245.0354, dwell = 44.1, origin = 1791471573.69, anchor = 1791489460.91,
       flipFrom = "Revantusk", flipTo = "Sparkwater", flipOffset = 123.2, flipDwell = 44.0 },
     -- Grom'gol <-> Undercity zeppelin, timed at the Grom'gol dock (the only end measured).
     -- Seen leaving Grom'gol 1791480459.89 and arriving 1791486390.25: 18 cycles of 333.02 s
@@ -97,7 +97,7 @@ local OB_OK, OB_ERR = pcall(function ()
     -- is learned on the first ride from Grom'gol.
     { entry = 176495, homeZ = { "Stranglethorn Vale" }, awayZ = { "Tirisfal Glades", "Undercity" },
       name = "Undercity", kind = "zeppelin", x = -12406.9, y = 211.8,
-      period = 333.02, dwell = 64.0, origin = 1791480395.89, anchor = 1791486390.25,
+      period = 333.0015, dwell = 64.0, origin = 1791480395.89, anchor = 1791486390.25,
       flipFrom = "Undercity", flipTo = "Grom'gol" },
     -- Ratchet -> Booty Bay boat, timed at the Ratchet dock. Never visible from Orgrimmar, so
     -- the row shows when to fly out ("fly") rather than when it docks. Ratchet arrivals
@@ -105,7 +105,7 @@ local OB_OK, OB_ERR = pcall(function ()
     -- two days' rides: docks 178.6 s after Ratchet, stays 64.2 s.
     { entry = 20808, homeZ = { "Ratchet" }, awayZ = { "Stranglethorn Vale" }, planZ = ORG,
       name = "Ratchet", kind = "boat", x = -1005.6, y = -3841.6, far = true,
-      period = 363.952, dwell = 63.7, origin = 1791479926.67, anchor = 1791490117.34,
+      period = 364.0298, dwell = 63.7, origin = 1791479926.67, anchor = 1791490117.34,
       flipFrom = "Booty Bay", flipTo = "Ratchet", flipOffset = 178.6, flipDwell = 64.2 },
   }
 
@@ -155,6 +155,9 @@ local OB_OK, OB_ERR = pcall(function ()
       t.bootPhase = t.bootPhase or {}
       t.bootPhaseBoot = t.bootPhaseBoot or {}
       t.corrected = t.corrected or {}
+      t.pW0 = t.pW0 or {}
+      t.pP0 = t.pP0 or {}
+      t.pK = t.pK or {}
       if c.ver ~= 2 then   -- v2: alerts are opt-in per route (bell) and chat-only by default
         c.ver = 2
         c.chat = true
@@ -173,6 +176,31 @@ local OB_OK, OB_ERR = pcall(function ()
     __newindex = function(_, k, v) Ensure().cfg[k] = v end,
   })
   Ensure()
+
+  -- One-time repair (1.3.4): restarts used to re-measure trip lengths from only a few
+  -- trips, throwing away days of evidence. Restore the long-term values (built in now),
+  -- count them as 700 trips of evidence, and recompute the restart offsets with them.
+  if not DB.fix134 then
+    for i = 1, table.getn(ROUTES) do
+      local r = ROUTES[i]
+      local e = r.entry
+      if r.period then
+        DB.period[e] = r.period
+        DB.pP0[e] = r.period
+        DB.pW0[e] = 700
+        if DB.origin[e] and DB.anchor[e] then
+          DB.pK[e] = math.floor((DB.anchor[e] - DB.origin[e]) / r.period + 0.5)
+        end
+        if DB.boot and DB.anchor[e] and DB.anchor[e] > DB.boot then
+          local c = math.mod(DB.anchor[e] - DB.boot, r.period)
+          if c < 0 then c = c + r.period end
+          DB.bootPhase[e] = c
+          DB.bootPhaseBoot[e] = DB.boot
+        end
+      end
+    end
+    DB.fix134 = true
+  end
 
   local function Say(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccOctoBus:|r " .. msg)
@@ -466,6 +494,9 @@ local OB_OK, OB_ERR = pcall(function ()
         local P = Period(r)
         if DB.bootPhase[e] and P and P > 0 and (DB.seenAt[e] or 0) < boot then
           DB.anchor[e] = boot + DB.bootPhase[e]
+          DB.pW0[e] = (DB.pW0[e] or 0) + (DB.pK[e] or 0)
+          DB.pP0[e] = P
+          DB.pK[e] = 0
           DB.origin[e] = DB.anchor[e]
           DB.pending[e] = nil
           DB.lastObs[e] = nil
@@ -597,7 +628,12 @@ local OB_OK, OB_ERR = pcall(function ()
       local tol = 0.25 * P
       if DB.lastObs[e] then tol = math.min(tol, 10 + 0.5 * (time() - DB.lastObs[e]) / 3600) end
       if k >= 1 and math.abs(resid) < tol then
-        DB.period[e] = delta / k
+        -- trip length = all evidence weighted by trips covered: earlier server runs
+        -- (pP0 over pW0 trips) plus this run (delta over k trips)
+        local W0 = DB.pW0[e] or 0
+        local P0 = DB.pP0[e] or P
+        DB.period[e] = (P0 * W0 + delta) / (W0 + k)
+        DB.pK[e] = k
         DB.lastObs[e] = time()
         DB.pending[e] = nil
       else
@@ -612,6 +648,10 @@ local OB_OK, OB_ERR = pcall(function ()
           fits = k2 >= 1 and math.abs(d2 - k2 * P) < 15
         end
         if fits then
+          -- a new server run: keep the trip length and how much evidence is behind it
+          DB.pW0[e] = (DB.pW0[e] or 0) + (DB.pK[e] or 0)
+          DB.pP0[e] = Period(r)
+          DB.pK[e] = 0
           DB.origin[e] = pd
           DB.pending[e] = nil
           DB.lastObs[e] = time()
@@ -1639,6 +1679,9 @@ local OB_OK, OB_ERR = pcall(function ()
       DB.bootPhaseBoot = {}
       DB.bootTheory = nil
       DB.corrected = {}
+      DB.pW0 = {}
+      DB.pP0 = {}
+      DB.pK = {}
       cal = nil
       confirmed = {}
       seenState = {}

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.4 (12 October 2026)
+
+### Fixed
+- After a server restart, each route's trip length was re-measured from only the few trips seen since, throwing away days of measurement. Small errors in it added up to 30-60 seconds within a few hours. Trip lengths now carry across restarts: new trips are blended in, weighted by how many trips each measurement covers.
+- Existing saved data is repaired once: trip lengths go back to the long-term values and the restart offsets are recomputed with them.
+
+### Changed
+- The built-in trip lengths are now the values measured over three days (400-900 trips per route), so a new copy starts accurate.
+
 ## 1.3.3 (12 October 2026)
 
 ### New
