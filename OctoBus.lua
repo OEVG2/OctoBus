@@ -241,7 +241,8 @@ local OB_OK, OB_ERR = pcall(function ()
     return AtHome(r) or AtAway(r) or AtPlan(r) or seenState[r.entry] ~= nil
   end
 
-  -- confirmed[entry] = true once the transport has been SEEN docking/leaving this session
+  -- confirmed[entry] = true once the transport has been SEEN docking/leaving at its home end
+  -- this session, or "far" when it was synced from a sighting at the far end
   local confirmed = {}
 
   ------------------------------------------------------------------------
@@ -557,9 +558,17 @@ local OB_OK, OB_ERR = pcall(function ()
           arr = h[1]
         end
         w.arr = arr
+        w.approached = approached
         local P = Period(r)
+        -- Re-sync from the far end: the transport docks here farOff seconds after its
+        -- home arrival, so its schedule is arrival - farOff. Only when the home end was
+        -- not seen this session (a home sighting is more direct and wins).
+        if approached and confirmed[e] ~= true and FarKnown(r) and P and P > 0 then
+          DB.anchor[e] = arr - FarOff(r, P)
+          confirmed[e] = "far"
+        end
         -- only when it was seen coming in (not already docked when it came into view)
-        if approached and confirmed[e] and P and P > 0 then
+        if approached and confirmed[e] == true and P and P > 0 then
           local off = math.mod(arr - Anchor(r), P)
           if off < 0 then off = off + P end
           local old = DB.farOff[e]
@@ -574,12 +583,21 @@ local OB_OK, OB_ERR = pcall(function ()
       local dx, dy = x - w.sx, y - w.sy
       if math.sqrt(dx * dx + dy * dy) <= DOCK_RADIUS then return end   -- still easing out
       local d = now - w.arr
-      if w.learn and d > 20 and d < 150 then
+      -- the stay only needs this end's own arrival and departure, so it is learned
+      -- whenever both were seen, wherever the schedule came from
+      if w.approached and d > 20 and d < 150 then
         local old = DB.farDwell[e]
         DB.farDwell[e] = old and (old * 0.6 + d * 0.4) or d
       end
+      -- never saw it dock here, but saw it leave: schedule = departure - stay - farOff
+      local P = Period(r)
+      if not w.approached and confirmed[e] ~= true and FarKnown(r) and P and P > 0 then
+        DB.anchor[e] = now - FarDwell(r) - FarOff(r, P)
+        confirmed[e] = "far"
+      end
       w.arr = nil
       w.learn = nil
+      w.approached = nil
     end
     w.sx, w.sy, w.st = x, y, now
   end
@@ -932,7 +950,8 @@ local OB_OK, OB_ERR = pcall(function ()
         end
         GameTooltip:AddLine("Click: " .. (Watched(r) and "remove the bell (no chat alert)" or "add a bell: chat message " .. CFG.alert .. "s before you need to fly"), 0.2, 1, 0.8)
       else
-      GameTooltip:AddLine(confirmed[r.entry] and "Seen this session: exact." or "Not seen this session: estimate (~).", 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(confirmed[r.entry] == true and "Seen this session: exact."
+        or (confirmed[r.entry] == "far" and ("Synced at " .. Away(r) .. " this session.") or "Not seen this session: estimate (~)."), 0.7, 0.7, 0.7)
       GameTooltip:AddLine("Click: " .. (Watched(r) and "remove the bell (no chat alert)" or "add a bell: chat message " .. CFG.alert .. "s before it arrives"), 0.2, 1, 0.8)
       end
       if r.flipFrom then

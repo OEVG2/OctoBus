@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2 (12 October 2026)
+
+### New
+- **Timers re-sync at the far end too.** Seeing a transport arrive at, or leave, Undercity, Grom'gol, Kargath, Thunder Bluff, Revantusk or Booty Bay now re-syncs that route, just like at Orgrimmar, Sparkwater and Ratchet. The row tooltip says where it was synced ("Synced at Undercity this session").
+- The stay at the far end is now learned whenever you see a transport both arrive and leave there.
+
 ## 1.3.1 (10 October 2026)
 
 ### Changed
