@@ -311,13 +311,27 @@ local OB_OK, OB_ERR = pcall(function ()
   local RowName = ShownName
 
   -- Each place has its own colour in the rows; renamed or unknown places stay white.
+  -- These are the full colours; the vibrance setting (CFG.vibrance, default 75%) darkens them.
   local PLACE_COLOR = {
-    ["orgrimmar"] = "bf3f33", ["undercity"] = "8769bf", ["gromgol"] = "4ca53f",
-    ["kargath"] = "a8733f", ["thunder bluff"] = "ae9959", ["sparkwater"] = "3399bf",
-    ["revantusk"] = "268c78", ["revantusk village"] = "268c78", ["ratchet"] = "bfa526",
-    ["booty bay"] = "bf6699",
+    ["orgrimmar"] = "ff5544", ["undercity"] = "b48cff", ["gromgol"] = "66dd55",
+    ["kargath"] = "e09a55", ["thunder bluff"] = "e8cc77", ["sparkwater"] = "44ccff",
+    ["revantusk"] = "33bba0", ["revantusk village"] = "33bba0", ["ratchet"] = "ffdd33",
+    ["booty bay"] = "ff88cc",
   }
-  local function Paint(n) return "|cff" .. (PLACE_COLOR[Norm(n)] or "ffffff") .. n .. "|r" end
+  local paintCache, paintAt = {}, nil
+  local function Paint(n)
+    local base = PLACE_COLOR[Norm(n)]
+    if not base then return "|cffffffff" .. n .. "|r" end
+    local v = CFG.vibrance or 0.75
+    if v ~= paintAt then paintCache = {} paintAt = v end
+    local hex = paintCache[base]
+    if not hex then
+      local function ch(i) return math.floor(tonumber(string.sub(base, i, i + 1), 16) * v + 0.5) end
+      hex = string.format("%02x%02x%02x", ch(1), ch(3), ch(5))
+      paintCache[base] = hex
+    end
+    return "|cff" .. hex .. n .. "|r"
+  end
   local function ColoredName(r)
     local a, b = r.flipTo, Away(r)
     if Flipped(r) then a, b = b, a end
@@ -938,7 +952,7 @@ local OB_OK, OB_ERR = pcall(function ()
   -- the timer window
   -- sizes at text size 100%; ApplyLook scales them with the text size setting
   local textScale = CFG.textScale or 1
-  local WIDTH = math.floor(280 * textScale + 0.5)
+  local WIDTH = math.floor(280 * textScale * (CFG.widthScale or 1) + 0.5)
   local ROW_H = math.floor(18 * textScale + 0.5)
   local TOP = math.floor(22 * textScale + 0.5)
 
@@ -1076,6 +1090,18 @@ local OB_OK, OB_ERR = pcall(function ()
 
   local rows = {}
 
+  -- text outline: "thin" (default), "thick", or "shadow" (thin outline plus a drop shadow)
+  local function StyleText(fs, size)
+    local o = CFG.outline or "thin"
+    fs:SetFont(font, size, o == "thick" and "THICKOUTLINE" or "OUTLINE")
+    if o == "shadow" then
+      fs:SetShadowColor(0, 0, 0, 1)
+      fs:SetShadowOffset(1.5, -1.5)
+    else
+      fs:SetShadowOffset(0, 0)
+    end
+  end
+
   local function PlaceRow(row, i)
     row:SetHeight(ROW_H)
     row:ClearAllPoints()
@@ -1083,8 +1109,13 @@ local OB_OK, OB_ERR = pcall(function ()
     row:SetPoint("RIGHT", panel, "RIGHT", -4, 0)
     local fs = math.floor(10 * textScale + 0.5)
     if row.name then
-      row.name:SetFont(font, fs, "OUTLINE")
-      row.time:SetFont(font, fs, "OUTLINE")
+      StyleText(row.name, fs)
+      StyleText(row.time, fs)
+      row.name:SetAlpha(CFG.textAlpha or 1)
+      row.time:SetAlpha(CFG.textAlpha or 1)
+      row.icon:SetAlpha(CFG.alpha or 1)
+      row.bell:SetAlpha(CFG.alpha or 1)
+      row.bg:SetAlpha(CFG.alpha or 1)
     end
   end
 
@@ -1201,19 +1232,26 @@ local OB_OK, OB_ERR = pcall(function ()
   -- Appearance (set from the settings window, /ob options): background opacity, window
   -- opacity and text size. Text size scales the fonts and the row height and width with them.
   local function ApplyLook()
+    -- window opacity fades everything but the text, which has its own opacity
+    local wa = CFG.alpha or 1
     local bg = CFG.bgAlpha or 0.75
-    panel:SetBackdropColor(0.02, 0.02, 0.02, bg)
-    panel:SetBackdropBorderColor(0.22, 0.22, 0.22, math.min(1, bg + 0.25))
-    panel:SetAlpha(CFG.alpha or 1)
+    panel:SetAlpha(1)
+    panel:SetBackdropColor(0.02, 0.02, 0.02, bg * wa)
+    panel:SetBackdropBorderColor(0.22, 0.22, 0.22, math.min(1, bg + 0.25) * wa)
+    grip:SetAlpha(wa)
     textScale = CFG.textScale or 1
-    WIDTH = math.floor(280 * textScale + 0.5)
+    WIDTH = math.floor(280 * textScale * (CFG.widthScale or 1) + 0.5)
     ROW_H = math.floor(18 * textScale + 0.5)
     TOP = math.floor(22 * textScale + 0.5)
     panel:SetWidth(WIDTH)
-    panel.title:SetFont(font, math.floor(10 * textScale + 0.5), "OUTLINE")
-    panel.status:SetFont(font, math.floor(9 * textScale + 0.5), "OUTLINE")
-    panel.foot:SetFont(font, math.floor(9 * textScale + 0.5), "OUTLINE")
+    StyleText(panel.title, math.floor(10 * textScale + 0.5))
+    StyleText(panel.status, math.floor(9 * textScale + 0.5))
+    StyleText(panel.foot, math.floor(9 * textScale + 0.5))
     for i = 1, table.getn(rows) do PlaceRow(rows[i], i) end
+    local ta = CFG.textAlpha or 1
+    panel.title:SetAlpha(ta)
+    panel.status:SetAlpha(ta)
+    panel.foot:SetAlpha(ta)
   end
   ApplyLook()
 
@@ -1343,6 +1381,14 @@ local OB_OK, OB_ERR = pcall(function ()
       end
     end
     for i = n + 1, table.getn(rows) do rows[i]:Hide() end
+    -- width: the chosen width, but never so narrow that a name runs into its time
+    local need = 0
+    for i = 1, n do
+      local w = (rows[i].name:GetStringWidth() or 0) + (rows[i].time:GetStringWidth() or 0)
+      if w > need then need = w end
+    end
+    need = math.floor(need + 4 + 2 + 14 + 4 + 20 + 12 * textScale + 4)
+    panel:SetWidth(need > WIDTH and need or WIDTH)
     panel:SetHeight(TOP + n * ROW_H + ((cal or (panel.foot:GetText() or "") ~= "") and math.floor(18 * textScale + 0.5) or 10))
     panel.title:SetText("|cff33ffccTransports|r" .. (CFG.full and " |cff777777- all|r" or ""))
     if recOn then

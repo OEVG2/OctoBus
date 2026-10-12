@@ -81,7 +81,7 @@ Saved data lives in `WTF\...\SavedVariables\OctoBus.lua`.
 - **Auto-show**: the window opens by itself at either end of any route (the zones in the table above), and while a tracked transport is in view, such as on a crossing. It hides elsewhere. The icon toggle always works manually. Add more auto-show places with `/ob allow <zone or sub-zone>` (capitals do not matter; `/ob where` shows the names), remove one with `/ob disallow <name>`, or turn the behaviour off with `/ob zone`.
 - **Bells**: click a row to toggle a bell. Belled routes print a chat message `/ob alert` seconds (default 45) before the transport docks at the row's start, e.g. `Orgrimmar -> Undercity: docks at Orgrimmar in 0:45`. Nothing is printed to chat for routes without a bell.
 - **Reverse a row**: right-click it.
-- **Settings window**: `/ob options`, or right-click the minimap icon. Background opacity, window opacity, text size, window size, lock, and which corner stays put as the list grows or shrinks, plus auto-show, which routes to show, and bell alerts. Changes apply at once.
+- **Settings window**: `/ob options`, or right-click the minimap icon. Background opacity, window opacity, text size, text opacity, the gap between names and times, place colour vibrance, text outline (thin, thick or shadow), window size, lock, and which corner stays put as the list grows or shrinks, plus auto-show, which routes to show, and bell alerts. Changes apply at once.
 - **Move and size the window**: drag it to move it; drag the dots in the bottom-right corner (or use `/ob scale`) to resize it. `/ob lock` locks position and size; `/ob resetpos` puts the window and icon back at their default place and size.
 
 ## How the timing works
