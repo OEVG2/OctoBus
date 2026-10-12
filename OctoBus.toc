@@ -6,3 +6,4 @@
 ## SavedVariables: OctoBusDB
 
 OctoBus.lua
+OctoBusOptions.lua

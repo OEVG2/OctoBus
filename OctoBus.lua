@@ -22,6 +22,7 @@
 
   SLASH COMMANDS  (/ob, also /transit and /zep)
     /ob                     show / hide the window (works anywhere)
+    /ob options             settings window (also: right-click the minimap icon)
     /ob list                print all timers in chat
     /ob alert <sec>         bell alerts fire this many seconds before arrival (default 45)
     /ob sound|chat|flash    toggle that alert type
@@ -362,29 +363,6 @@ local OB_OK, OB_ERR = pcall(function ()
     return string.format("%.1f days", sec / 86400)
   end
 
-  -- footer text, and whether it should be highlighted: names the transport whose latest
-  -- sighting is the oldest, and how long ago that was. Orange after 5 days.
-  local function CalAgeText()
-    local oldR, oldT = nil, nil
-    for i = 1, table.getn(ROUTES) do
-      local r = ROUTES[i]
-      if Visible(r) then
-        local t = math.max(DB.lastObs[r.entry] or 0, DB.anchor[r.entry] or r.anchor or 0)
-        if not oldT or t < oldT then oldR, oldT = r, t end
-      end
-    end
-    if not oldR then return "", false end
-    if oldT <= 0 then return "oldest data: " .. RouteName(oldR) .. ", never seen", true end
-    local gone = time() - oldT
-    local ago
-    if gone < 120 then ago = "just now"
-    elseif gone < 3600 then ago = math.floor(gone / 60 + 0.5) .. " min ago"
-    elseif gone < 86400 then ago = string.format("%.0f", gone / 3600) .. " h ago"
-    else ago = math.floor(gone / 86400 + 0.5) .. " days ago" end
-    local stale = (gone >= 5 * 86400)
-    return "oldest data: " .. RouteName(oldR) .. ", seen " .. ago .. (stale and ", go see it" or ""), stale
-  end
-
   local function CalFinish(complete)
     if not cal then return end
     Say(complete and "calibration complete." or "calibration stopped.")
@@ -397,9 +375,6 @@ local OB_OK, OB_ERR = pcall(function ()
           (oldP and (math.abs(oldP - Period(r)) > 0.005 and ("  (was " .. string.format("%.2f", oldP) .. ")") or "  (unchanged)") or "") ..
           (done and "" or "   - not seen, still using the old value"))
       end
-    end
-    if complete then
-      Say("done. The window footer tracks how fresh this is; it nags after 5 days.")
     end
     cal = nil
   end
@@ -916,7 +891,7 @@ local OB_OK, OB_ERR = pcall(function ()
   btn:SetFrameLevel(Minimap:GetFrameLevel() + 8)
   btn:SetWidth(31)
   btn:SetHeight(31)
-  btn:RegisterForClicks("LeftButtonUp")
+  btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   btn:RegisterForDrag("LeftButton")
   btn.icon = btn:CreateTexture(nil, "ARTWORK")
   btn.icon:SetWidth(20)
@@ -961,9 +936,11 @@ local OB_OK, OB_ERR = pcall(function ()
   end)
 
   -- the timer window
-  local WIDTH = 280
-  local ROW_H = 18
-  local TOP = 22
+  -- sizes at text size 100%; ApplyLook scales them with the text size setting
+  local textScale = CFG.textScale or 1
+  local WIDTH = math.floor(280 * textScale + 0.5)
+  local ROW_H = math.floor(18 * textScale + 0.5)
+  local TOP = math.floor(22 * textScale + 0.5)
 
   local panel = CreateFrame("Frame", "OctoBusPanel", UIParent)
   panel:SetFrameStrata("MEDIUM")
@@ -990,9 +967,17 @@ local OB_OK, OB_ERR = pcall(function ()
   panel.foot:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 4)
   panel.foot:SetJustifyH("LEFT")
 
+  -- The window is pinned by one corner (CFG.anchor, set in the settings window; default
+  -- bottom-left), so when the list gets longer or shorter the other edges move.
   local function SavePos()
-    local x, y = panel:GetLeft(), panel:GetBottom()
-    if x and y then CFG.pos = { x = x, y = y } end
+    local a = CFG.anchor or "BOTTOMLEFT"
+    local x = string.find(a, "RIGHT") and panel:GetRight() or panel:GetLeft()
+    local y = string.find(a, "TOP") and panel:GetTop() or panel:GetBottom()
+    if x and y then
+      CFG.pos = { x = x, y = y, a = a }
+      panel:ClearAllPoints()
+      panel:SetPoint(a, UIParent, "BOTTOMLEFT", x, y)
+    end
   end
 
   local function StartDrag()
@@ -1091,11 +1076,20 @@ local OB_OK, OB_ERR = pcall(function ()
 
   local rows = {}
 
-  local function CreateRow(i)
-    local row = CreateFrame("Button", nil, panel)
+  local function PlaceRow(row, i)
     row:SetHeight(ROW_H)
+    row:ClearAllPoints()
     row:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -(TOP + (i - 1) * ROW_H))
     row:SetPoint("RIGHT", panel, "RIGHT", -4, 0)
+    local fs = math.floor(10 * textScale + 0.5)
+    if row.name then
+      row.name:SetFont(font, fs, "OUTLINE")
+      row.time:SetFont(font, fs, "OUTLINE")
+    end
+  end
+
+  local function CreateRow(i)
+    local row = CreateFrame("Button", nil, panel)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:RegisterForDrag("LeftButton")
     row:SetScript("OnDragStart", StartDrag)
@@ -1199,9 +1193,29 @@ local OB_OK, OB_ERR = pcall(function ()
       GameTooltip:Show()
     end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    PlaceRow(row, i)
     rows[i] = row
     return row
   end
+
+  -- Appearance (set from the settings window, /ob options): background opacity, window
+  -- opacity and text size. Text size scales the fonts and the row height and width with them.
+  local function ApplyLook()
+    local bg = CFG.bgAlpha or 0.75
+    panel:SetBackdropColor(0.02, 0.02, 0.02, bg)
+    panel:SetBackdropBorderColor(0.22, 0.22, 0.22, math.min(1, bg + 0.25))
+    panel:SetAlpha(CFG.alpha or 1)
+    textScale = CFG.textScale or 1
+    WIDTH = math.floor(280 * textScale + 0.5)
+    ROW_H = math.floor(18 * textScale + 0.5)
+    TOP = math.floor(22 * textScale + 0.5)
+    panel:SetWidth(WIDTH)
+    panel.title:SetFont(font, math.floor(10 * textScale + 0.5), "OUTLINE")
+    panel.status:SetFont(font, math.floor(9 * textScale + 0.5), "OUTLINE")
+    panel.foot:SetFont(font, math.floor(9 * textScale + 0.5), "OUTLINE")
+    for i = 1, table.getn(rows) do PlaceRow(rows[i], i) end
+  end
+  ApplyLook()
 
   -- returns state ("docked" / "wait" / nil), seconds (may be nil if unknown)
   local function Status(r)
@@ -1329,7 +1343,7 @@ local OB_OK, OB_ERR = pcall(function ()
       end
     end
     for i = n + 1, table.getn(rows) do rows[i]:Hide() end
-    panel:SetHeight(TOP + n * ROW_H + 18)
+    panel:SetHeight(TOP + n * ROW_H + ((cal or (panel.foot:GetText() or "") ~= "") and math.floor(18 * textScale + 0.5) or 10))
     panel.title:SetText("|cff33ffccTransports|r" .. (CFG.full and " |cff777777- all|r" or ""))
     if recOn then
       panel.status:SetText("|cffff4444REC|r " .. (type(DB.rec) == "table" and table.getn(DB.rec) or 0))
@@ -1353,22 +1367,22 @@ local OB_OK, OB_ERR = pcall(function ()
         panel.foot:SetText("|cffffaa33calibrating " .. d .. "/" .. t .. ": waiting for arrivals|r")
       end
     else
-      local txt, stale = CalAgeText()
+      -- the footer only appears after a server restart, while a shown route is unseen since
+      local txt = ""
       for i = 1, table.getn(ROUTES) do
         if Visible(ROUTES[i]) and Stale(ROUTES[i]) then
-          txt = "server restarted " .. FormatSpan(time() - DB.restartAt) .. " ago: ? = not seen since"
-          stale = true
+          txt = "|cffffaa33server restarted " .. FormatSpan(time() - DB.restartAt) .. " ago: ? = not seen since|r"
           break
         end
       end
-      panel.foot:SetText((stale and "|cffffaa33" or "|cff777777") .. txt .. "" .. "|r")
+      panel.foot:SetText(txt)
     end
   end
 
   local function PlacePanel()
     panel:ClearAllPoints()
     if CFG.pos then
-      panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", CFG.pos.x, CFG.pos.y)
+      panel:SetPoint(CFG.pos.a or "BOTTOMLEFT", UIParent, "BOTTOMLEFT", CFG.pos.x, CFG.pos.y)
     else
       panel:SetPoint("TOPRIGHT", anchorTo, "BOTTOMRIGHT", 0, -8)
     end
@@ -1424,11 +1438,14 @@ local OB_OK, OB_ERR = pcall(function ()
     ApplyVisibility()
   end
 
-  btn:SetScript("OnClick", function() ToggleShown() end)
+  btn:SetScript("OnClick", function()
+    if arg1 == "RightButton" then OctoBus_Options() else ToggleShown() end
+  end)
   btn:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_LEFT")
     GameTooltip:AddLine("Transports", 0.2, 1, 0.8)
     GameTooltip:AddLine("Click: " .. (panel:IsShown() and "hide" or "show") .. " the window (works anywhere)", 1, 1, 1)
+    GameTooltip:AddLine("Right-click: settings", 1, 1, 1)
     GameTooltip:AddLine("Opens by itself at either end of any route.", 0.7, 0.7, 0.7)
     GameTooltip:AddLine("Drag: move this icon around the minimap", 0.7, 0.7, 0.7)
     GameTooltip:Show()
@@ -1611,6 +1628,9 @@ local OB_OK, OB_ERR = pcall(function ()
     elseif cmd == "boat"  then
       CFG.hideBoat = not CFG.hideBoat
       Say("Sparkwater Port boat " .. (CFG.hideBoat and "hidden" or "shown") .. ".")
+    elseif cmd == "options" or cmd == "config" or cmd == "settings" then
+      OctoBus_Options()
+
     elseif cmd == "lock" then
       Toggle("window locked", "locked")
       if CFG.locked then grip:Hide() else grip:Show() end
@@ -1735,9 +1755,28 @@ local OB_OK, OB_ERR = pcall(function ()
       if recOn then Say("recording: on, " .. table.getn(DB.rec) .. " lines so far.") end
 
     else
-      Say("/ob (window on/off)  |  list  |  alert <s>  |  all|sound|chat|flash|zone|boat|lock  |  scale <n>  |  where  |  shape <square|round|auto>  |  allow|disallow <name>  |  resetpos  |  name <n> <text>  |  period <n> <s>  |  travel <s>  |  calibrate  |  reset  |  debug [on|off]")
+      Say("/ob (window on/off)  |  options  |  list  |  alert <s>  |  all|sound|chat|flash|zone|boat|lock  |  scale <n>  |  where  |  shape <square|round|auto>  |  allow|disallow <name>  |  resetpos  |  name <n> <text>  |  period <n> <s>  |  travel <s>  |  calibrate  |  reset  |  debug [on|off]")
     end
   end
+
+  -- for the settings window (OctoBusOptions.lua)
+  OctoBus = {
+    cfg = CFG,
+    ApplyLook = function() ApplyLook() Refresh() end,
+    Refresh = function() Refresh() end,
+    Show = function() override = "show" ApplyVisibility() end,
+    SetAnchor = function(a)
+      CFG.anchor = a
+      if panel:GetLeft() then SavePos() end   -- keeps the window where it is, pinned by the new corner
+    end,
+    SetScale = function(v) ApplyScale(v) end,
+    scaleMin = SCALE_MIN,
+    scaleMax = SCALE_MAX,
+    SetLocked = function(v)
+      CFG.locked = v and true or false
+      if CFG.locked then grip:Hide() else grip:Show() end
+    end,
+  }
 
 end)
 if not OB_OK then

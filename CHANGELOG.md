@@ -5,8 +5,11 @@
 ### New
 - **Accurate without the DLL.** OctoBus now ships with each route's restart offset (how many seconds into its trip it docks, counted from the last server restart), measured on 12 October. At every login it asks the server how long it has been up and sets every route it has not seen since that restart from the restart time plus the offset. A brand new copy with no DLL and no sightings gets every timer right from the first login, and stays right after later restarts.
 
+- **Settings window**: `/ob options`, or right-click the minimap icon. Background opacity, window opacity, text size, window size, lock, which corner stays put as the list grows or shrinks, auto-show, which routes to show, and bell alerts. Changes apply at once.
+
 ### Changed
 - The "no DLL: estimates only" note is gone from the panel: without the DLL the timers are now accurate. `/ob debug` still shows whether the DLL is loaded.
+- The footer no longer names the route with the oldest data (the restart correction makes it unnecessary). It only appears after a server restart, while a route in the window has not been seen since.
 
 ## 1.3.4 (12 October 2026)
 

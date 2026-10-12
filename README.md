@@ -24,7 +24,7 @@ OctoBus needs one extra file, `ZepSense.dll`, which you install by hand in the g
 | Row order | Soonest first: whatever docks, leaves or needs you to fly next is at the top. Rows move as the timers change. |
 | Bell on a row | Alerts are on for that route (click a row to toggle). |
 | Title | Click it to switch between the routes for where you are and all routes (`Transports - all`). |
-| Footer | The route whose data is oldest, e.g. `oldest data: Orgrimmar -> Undercity, seen 3 h ago`. It turns orange after 5 days, as a hint to go and see it again. |
+| Footer | Only shown after a server restart, while a route in the window has not been seen since: `server restarted 20 min ago: ? = not seen since`. |
 | Dots, bottom-right corner | Drag to make the window bigger or smaller. |
 | Hover over a row | Cycle, stay at the dock, how the far end was measured, and what left- and right-click do. |
 
@@ -81,6 +81,7 @@ Saved data lives in `WTF\...\SavedVariables\OctoBus.lua`.
 - **Auto-show**: the window opens by itself at either end of any route (the zones in the table above), and while a tracked transport is in view, such as on a crossing. It hides elsewhere. The icon toggle always works manually. Add more auto-show places with `/ob allow <zone or sub-zone>` (capitals do not matter; `/ob where` shows the names), remove one with `/ob disallow <name>`, or turn the behaviour off with `/ob zone`.
 - **Bells**: click a row to toggle a bell. Belled routes print a chat message `/ob alert` seconds (default 45) before the transport docks at the row's start, e.g. `Orgrimmar -> Undercity: docks at Orgrimmar in 0:45`. Nothing is printed to chat for routes without a bell.
 - **Reverse a row**: right-click it.
+- **Settings window**: `/ob options`, or right-click the minimap icon. Background opacity, window opacity, text size, window size, lock, and which corner stays put as the list grows or shrinks, plus auto-show, which routes to show, and bell alerts. Changes apply at once.
 - **Move and size the window**: drag it to move it; drag the dots in the bottom-right corner (or use `/ob scale`) to resize it. `/ob lock` locks position and size; `/ob resetpos` puts the window and icon back at their default place and size.
 
 ## How the timing works
@@ -108,6 +109,7 @@ The Ratchet boat cannot be seen from Orgrimmar, so its row is always an estimate
 | Command | What it does |
 |---|---|
 | `/ob` | Show / hide the window (works anywhere) |
+| `/ob options` | Settings window (also: right-click the minimap icon) |
 | `/ob list` | Print all timers in chat |
 | `/ob alert <sec>` | Bell alerts fire this many seconds before arrival (default 45, `0` = off) |
 | `/ob chat`, `/ob sound`, `/ob flash` | Toggle that alert type (chat on by default; sound and screen flash off) |
