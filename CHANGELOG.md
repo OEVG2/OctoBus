@@ -11,6 +11,9 @@
 - The "no DLL: estimates only" note is gone from the panel: without the DLL the timers are now accurate. `/ob debug` still shows whether the DLL is loaded.
 - The footer no longer names the route with the oldest data (the restart correction makes it unnecessary). It only appears after a server restart, while a route in the window has not been seen since.
 
+### Fixed
+- Window size, look, lock, position and the minimap icon's spot were not restored after logging in: they were applied before the game had loaded the saved settings.
+
 ## 1.3.4 (12 October 2026)
 
 ### Fixed

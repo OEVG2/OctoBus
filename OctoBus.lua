@@ -1759,6 +1759,21 @@ local OB_OK, OB_ERR = pcall(function ()
     end
   end
 
+  -- This file runs before the game loads the saved settings, so everything set up above
+  -- used the defaults. Once they are loaded, apply them: size, look, lock, icon and
+  -- window position.
+  do
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("VARIABLES_LOADED")
+    f:SetScript("OnEvent", function()
+      panel:SetScale(CFG.scale or 1)
+      ApplyLook()
+      if CFG.locked then grip:Hide() else grip:Show() end
+      PlaceButton()
+      PlacePanel()
+    end)
+  end
+
   -- for the settings window (OctoBusOptions.lua)
   OctoBus = {
     cfg = CFG,
