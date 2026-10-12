@@ -51,7 +51,7 @@ Switch with a click on the window title, or `/ob all`.
 
 ## Requirements
 
-1. **`ZepSense.dll`**, a small client DLL that exposes one Lua function, `ZepTransports()`, which returns the position of every zeppelin/boat the client currently has loaded. The addon cannot see transports without it. Without the DLL it shows built-in estimates only (marked `~`).
+1. **`ZepSense.dll`**, a small client DLL that exposes one Lua function, `ZepTransports()`, which returns the position of every zeppelin/boat the client currently has loaded. The addon cannot see transports without it. Without the DLL, every timer is still set from the server's restart time and the built-in offsets, which is accurate, but OctoBus cannot re-sync or re-learn from sightings, so times stay marked `~`.
 2. A client setup that loads DLLs listed in `dlls.txt`.
 
 ## Install
@@ -69,7 +69,7 @@ Installing takes two parts. The addon can be installed by your launcher; the DLL
 2. Put it in the game folder, next to `WoW.exe`.
 3. Open `dlls.txt` in the game folder and add a line `ZepSense.dll`.
 4. Start the game fully (a `/reload` is not enough the first time the DLL is added).
-5. Check it worked: open the window (`/ob` or the minimap icon). If the top-right corner says **"no DLL: estimates only"**, the DLL is not loaded (see [Troubleshooting](#troubleshooting)). If that note is absent, everything is working. There is nothing else to set up: the timers correct themselves each time you see a transport dock.
+5. Check it worked: open the window (`/ob` or the minimap icon). To confirm the DLL is loaded, type `/ob debug`. Watching a transport dock also removes the `~` from its time. There is nothing else to set up: the timers correct themselves each time you see a transport dock.
 
 The DLL only reads transport positions that the client has already loaded; it does not send anything anywhere. Its source is `ZepSense_src/ZepSense_v5.c` (built with `i686-w64-mingw32-gcc -O2 -shared -static-libgcc -Wl,--kill-at -s`). As with any client DLL, use it at your own risk and check your server's rules.
 
@@ -132,7 +132,7 @@ The Ratchet boat cannot be seen from Orgrimmar, so its row is always an estimate
 
 ## Troubleshooting
 
-- **"no DLL: estimates only"**: the DLL is not loaded. Check that `ZepSense.dll` is in the game folder and listed in `dlls.txt`, then fully restart the game. `/ob debug` shows the state.
+- **Times keep their `~` even after you watch a transport dock**: the DLL is not loaded. Check that `ZepSense.dll` is in the game folder and listed in `dlls.txt`, then fully restart the game. `/ob debug` shows the state.
 - **Times have a `~` and never confirm**: go to that end of the route and wait for an arrival, or at the Orgrimmar towers run `/ob calibrate`.
 - **A route I want is missing from the window**: you are in the "where you are" view and not at either end of it. Click the title to see all routes.
 - **`/ob` does nothing or prints a start-up error**: the addon reports its own load errors in chat; copy the message when reporting a bug.

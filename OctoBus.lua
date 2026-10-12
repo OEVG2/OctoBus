@@ -1334,7 +1334,7 @@ local OB_OK, OB_ERR = pcall(function ()
     if recOn then
       panel.status:SetText("|cffff4444REC|r " .. (type(DB.rec) == "table" and table.getn(DB.rec) or 0))
     else
-      panel.status:SetText(dllOk and "" or "no DLL: estimates only")
+      panel.status:SetText("")
     end
     if cal then
       local d, t = CalCount()
