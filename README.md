@@ -14,7 +14,9 @@ OctoBus needs one extra file, `ZepSense.dll`, which you install by hand in the g
 |---|---|
 | Green check | Transport is docked now. The timer counts down to departure ("leaves"). |
 | Red X | Transport is away. The timer counts down to docking ("docks"). |
-| `~` before a time | An estimate from stored data. It goes away once you see the transport dock or leave. |
+| No mark before a time | Seen since the server last restarted: accurate to a few seconds. |
+| `~` before a time | An estimate: worked out from the server restart time, or never seen yet. |
+| `?` before a time (orange) | The server restarted and this route has not been seen since, so the time may be off by up to 3 minutes. It goes away when you see it. |
 | `departing` (yellow) | The transport is still at the dock past its scheduled time and is about to leave. |
 | `fly now` (red) | Ratchet boat: it is time to leave Orgrimmar for this sailing. It shows for 10 seconds, then the row moves on to the next sailing you can still make. |
 | `fly 4:55 sails 6:40` | Ratchet boat only: leave Orgrimmar in 4:55 to be on the Ratchet dock before it sails in 6:40. If you can no longer make a sailing, it shows the next one. |
@@ -89,6 +91,7 @@ Each route runs on a fixed cycle. Once the addon sees one transport arrive, it c
 - **`/ob calibrate`** (optional): watches every transport on purpose. Stand between the two towers where you can see the docks, do not `/reload`, and wait; rows are marked complete as each route is confirmed. A transport being out of view for a while is normal. If nothing at all has been seen after about 10 minutes, move closer to the towers. `/ob calibrate stop` cancels.
 - Transports are not reported from deep inside the city (bank / auction house area), so calibrate near the towers.
 - **Far ends are learned by riding.** When a transport stands still for 20 s away from its home dock, it is docked at the far end: the addon stores when it docked there (relative to its schedule) and how long it stayed. This needs the home end to have been seen earlier in the same session (for example, it leaving Orgrimmar with you on board), and the transport to be seen arriving. No recording is needed.
+- **Server restarts.** A restart starts every transport's schedule over. When you log in, OctoBus quietly asks the server how long it has been up (`.server info`) and so knows exactly when it restarted. Each route docks a fixed number of seconds into its trip after a restart; OctoBus learns that once per route, from any sighting, and after later restarts corrects every route straight away from the restart time. Until that has been seen to hold across one restart, corrected routes keep the `?` mark. A sighting that jumps by more than drift can explain also counts as a restart.
 - **Both ends keep the timers in sync.** Seeing a transport arrive at, or leave, either end of its route re-syncs that route. At the far end this uses the measured far-end timing; if the home end was already seen in the same session, a far-end arrival sharpens the far-end timing instead.
 - **One odd sighting does not wipe a route's history.** A sighting that does not fit the schedule is set aside; the schedule only starts over (for example after a server restart) when a second sighting agrees with it.
 

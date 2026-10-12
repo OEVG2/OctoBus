@@ -151,6 +151,10 @@ local OB_OK, OB_ERR = pcall(function ()
       if c.locked == nil then c.locked = false end
       if c.travel == nil then c.travel = 175 end
       t.pending = t.pending or {}
+      t.seenAt = t.seenAt or {}
+      t.bootPhase = t.bootPhase or {}
+      t.bootPhaseBoot = t.bootPhaseBoot or {}
+      t.corrected = t.corrected or {}
       if c.ver ~= 2 then   -- v2: alerts are opt-in per route (bell) and chat-only by default
         c.ver = 2
         c.chat = true
@@ -414,6 +418,169 @@ local OB_OK, OB_ERR = pcall(function ()
   local dllOk = false
   local lastGood = 0
 
+  -- Server uptime. ".server info" tells how long the server has been up, so the restart
+  -- time is known exactly (DB.boot). Transports on this core run on server time, so each
+  -- route docks a fixed number of seconds into its cycle after a restart (DB.bootPhase).
+  -- Once that has been seen to hold across a restart (DB.bootTheory), every route is
+  -- corrected straight after a restart, before any of them is seen.
+  local uptimeAsked, uptimeHideUntil = 0, 0
+  local function QueryUptime()
+    if GetTime() - uptimeAsked < 120 then return end
+    uptimeAsked = GetTime()
+    uptimeHideUntil = GetTime() + 8
+    SendChatMessage(".server info", "SAY")
+  end
+
+  local function LearnPhase(r, anchor)
+    if not DB.boot or anchor < DB.boot then return end
+    local P = Period(r)
+    if not P or P <= 0 then return end
+    local e = r.entry
+    local c = math.mod(anchor - DB.boot, P)
+    if c < 0 then c = c + P end
+    local old = DB.bootPhase[e]
+    if old then
+      local d = c - old
+      if d > P / 2 then d = d - P elseif d < -P / 2 then d = d + P end
+      if math.abs(d) < 5 then
+        -- the same offset after a different restart: the theory holds
+        if DB.bootPhaseBoot[e] and math.abs(DB.bootPhaseBoot[e] - DB.boot) > 300 then DB.bootTheory = true end
+        c = math.mod(old + d * 0.5 + P, P)
+      end
+    end
+    DB.bootPhase[e] = c
+    DB.bootPhaseBoot[e] = DB.boot
+  end
+
+  local function OnBoot(boot)
+    local old = DB.boot or DB.bootPrev
+    DB.boot = boot
+    DB.bootPrev = nil
+    if old and math.abs(boot - old) > 300 then
+      -- the server restarted at 'boot': every route seen before then is off
+      DB.restartAt = boot
+      DB.restartRoute = "server uptime"
+      for i = 1, table.getn(ROUTES) do
+        local r = ROUTES[i]
+        local e = r.entry
+        local P = Period(r)
+        if DB.bootPhase[e] and P and P > 0 and (DB.seenAt[e] or 0) < boot then
+          DB.anchor[e] = boot + DB.bootPhase[e]
+          DB.origin[e] = DB.anchor[e]
+          DB.pending[e] = nil
+          DB.lastObs[e] = nil
+          DB.corrected[e] = boot
+          if DB.bootTheory then DB.seenAt[e] = boot end   -- corrected: "~" instead of "?"
+        end
+      end
+    else
+      -- same server run: a restart noticed earlier from a jump happened at 'boot'
+      if DB.restartAt and DB.restartAt > boot then DB.restartAt = boot end
+    end
+    -- learn offsets from routes already seen since this restart
+    for i = 1, table.getn(ROUTES) do
+      local r = ROUTES[i]
+      if (DB.seenAt[r.entry] or 0) > boot and DB.anchor[r.entry] then LearnPhase(r, DB.anchor[r.entry]) end
+    end
+  end
+
+  -- "Server uptime: 7 Hours 39 Minutes 39 Seconds" -> seconds
+  local function ParseUptime(msg)
+    local _, _, rest = string.find(msg or "", "^Server uptime: (.+)$")
+    if not rest then return nil end
+    local total, any = 0, false
+    for n, unit in gfind(rest, "(%d+) (%a+)") do
+      n = tonumber(n)
+      unit = string.lower(unit)
+      any = true
+      if string.find(unit, "^day") then total = total + n * 86400
+      elseif string.find(unit, "^hour") then total = total + n * 3600
+      elseif string.find(unit, "^min") then total = total + n * 60
+      elseif string.find(unit, "^sec") then total = total + n end
+    end
+    if any then return total end
+    return nil
+  end
+
+  do
+    local f = CreateFrame("Frame")
+    local askAt = nil
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("CHAT_MSG_SYSTEM")
+    f:SetScript("OnEvent", function()
+      if event == "PLAYER_ENTERING_WORLD" then
+        askAt = GetTime() + 4
+      else
+        local up = ParseUptime(arg1)
+        if up then OnBoot(time() - up) end
+      end
+    end)
+    f:SetScript("OnUpdate", function()
+      if askAt and GetTime() >= askAt then
+        askAt = nil
+        QueryUptime()
+      end
+    end)
+    -- hide the reply to our own query (a ".server info" you type yourself still shows)
+    local origChat = ChatFrame_OnEvent
+    ChatFrame_OnEvent = function(ev)
+      if ev == "CHAT_MSG_SYSTEM" and GetTime() < uptimeHideUntil and arg1 and
+          (string.find(arg1, "^Players online") or string.find(arg1, "^Server uptime") or string.find(arg1, "^Server Time")) then
+        return
+      end
+      return origChat(ev)
+    end
+  end
+
+  -- Server restart detection. A sighting that moves a route's schedule by far more than
+  -- drift can explain (10 s + 0.5 s per hour since it was last seen) means the server
+  -- restarted: every transport's schedule starts over. Routes not seen since are flagged
+  -- until they are seen again. newAnchor = the home arrival time this sighting implies.
+  local function NoteSighting(r, newAnchor)
+    local e = r.entry
+    local P = Period(r)
+    local old = DB.anchor[e]
+    local lastT = DB.seenAt[e] or DB.lastObs[e]
+    if old and P and P > 0 and lastT then
+      local d = math.mod(newAnchor - old, P)
+      if d < 0 then d = d + P end
+      if d > P / 2 then d = d - P end
+      if math.abs(d) > 10 + 0.5 * (time() - lastT) / 3600 then
+        if DB.boot and lastT < DB.boot then
+          -- explained by the restart we already know about (last seen before it)
+          if not DB.restartAt or DB.restartAt > DB.boot then DB.restartAt = DB.boot end
+        else
+          -- a restart we did not know about: mark it now and ask for the uptime
+          DB.restartAt = time()
+          DB.restartRoute = RouteName(r)
+          if DB.boot then   -- that server run is over
+            DB.bootPrev = DB.boot
+            DB.boot = nil
+          end
+          QueryUptime()
+        end
+      end
+    end
+    DB.seenAt[e] = time()
+    DB.corrected[e] = nil
+    LearnPhase(r, newAnchor)
+  end
+
+  local function Stale(r)
+    return DB.restartAt ~= nil and (DB.seenAt[r.entry] or 0) < DB.restartAt
+  end
+
+  -- mark in front of a time: "" = seen since the current server restart (accurate),
+  -- "~" = an estimate (corrected from the restart time, or never seen), "?" = not seen
+  -- since a restart and not corrected (may be off by minutes)
+  local function Mark(r)
+    if Stale(r) then return "|cffffaa33?|r" end
+    local e = r.entry
+    if DB.corrected[e] or not DB.seenAt[e] then return "|cff888888~|r" end
+    if Flipped(r) and not FarKnown(r) then return "|cff888888~|r" end
+    return ""
+  end
+
   local function OnArrive(r, t)
     local e = r.entry
     if not DB.origin[e] and r.origin then DB.origin[e] = r.origin end
@@ -425,7 +592,11 @@ local OB_OK, OB_ERR = pcall(function ()
       local delta = t - origin
       local k = math.floor(delta / P + 0.5)
       local resid = delta - k * P
-      if k >= 1 and math.abs(resid) < 0.25 * P then
+      -- fits the long-term schedule if within what drift can explain since the last
+      -- fitting sighting; anything more is a restart (or a bad sighting)
+      local tol = 0.25 * P
+      if DB.lastObs[e] then tol = math.min(tol, 10 + 0.5 * (time() - DB.lastObs[e]) / 3600) end
+      if k >= 1 and math.abs(resid) < tol then
         DB.period[e] = delta / k
         DB.lastObs[e] = time()
         DB.pending[e] = nil
@@ -438,7 +609,7 @@ local OB_OK, OB_ERR = pcall(function ()
         if pd then
           local d2 = t - pd
           local k2 = math.floor(d2 / P + 0.5)
-          fits = k2 >= 1 and math.abs(d2 - k2 * P) < 0.25 * P
+          fits = k2 >= 1 and math.abs(d2 - k2 * P) < 15
         end
         if fits then
           DB.origin[e] = pd
@@ -462,6 +633,7 @@ local OB_OK, OB_ERR = pcall(function ()
           string.format("%d", math.floor(math.abs(off) + 0.5)) .. "s).")
       end
     end
+    NoteSighting(r, t)
     DB.anchor[e] = t
     confirmed[e] = true
     CalObs(r, rebased)
@@ -477,6 +649,7 @@ local OB_OK, OB_ERR = pcall(function ()
     else
       -- never saw it arrive, but it leaves 'dwell' seconds after arriving
       if not DB.origin[e] and r.origin then DB.origin[e] = r.origin end
+      NoteSighting(r, t - Dwell(r))
       DB.anchor[e] = t - Dwell(r)
       if not DB.origin[e] then
         DB.origin[e] = t - Dwell(r)
@@ -564,6 +737,7 @@ local OB_OK, OB_ERR = pcall(function ()
         -- home arrival, so its schedule is arrival - farOff. Only when the home end was
         -- not seen this session (a home sighting is more direct and wins).
         if approached and confirmed[e] ~= true and FarKnown(r) and P and P > 0 then
+          NoteSighting(r, arr - FarOff(r, P))
           DB.anchor[e] = arr - FarOff(r, P)
           confirmed[e] = "far"
         end
@@ -592,6 +766,7 @@ local OB_OK, OB_ERR = pcall(function ()
       -- never saw it dock here, but saw it leave: schedule = departure - stay - farOff
       local P = Period(r)
       if not w.approached and confirmed[e] ~= true and FarKnown(r) and P and P > 0 then
+        NoteSighting(r, now - FarDwell(r) - FarOff(r, P))
         DB.anchor[e] = now - FarDwell(r) - FarOff(r, P)
         confirmed[e] = "far"
       end
@@ -950,9 +1125,20 @@ local OB_OK, OB_ERR = pcall(function ()
         end
         GameTooltip:AddLine("Click: " .. (Watched(r) and "remove the bell (no chat alert)" or "add a bell: chat message " .. CFG.alert .. "s before you need to fly"), 0.2, 1, 0.8)
       else
-      GameTooltip:AddLine(confirmed[r.entry] == true and "Seen this session: exact."
-        or (confirmed[r.entry] == "far" and ("Synced at " .. Away(r) .. " this session.") or "Not seen this session: estimate (~)."), 0.7, 0.7, 0.7)
+      local e = r.entry
+      local how
+      if Stale(r) then how = "Not seen since the server restarted (?)."
+      elseif DB.corrected[e] then how = "Corrected from the server restart time, not seen since (~)."
+      elseif not DB.seenAt[e] then how = "Never seen: built-in estimate (~)."
+      else how = "Seen since the server restarted" .. (confirmed[e] == "far" and (", synced at " .. Away(r)) or "") ..
+        ", " .. FormatSpan(time() - DB.seenAt[e]) .. " ago: accurate." end
+      GameTooltip:AddLine(how, 0.7, 0.7, 0.7)
       GameTooltip:AddLine("Click: " .. (Watched(r) and "remove the bell (no chat alert)" or "add a bell: chat message " .. CFG.alert .. "s before it arrives"), 0.2, 1, 0.8)
+      end
+      if Stale(r) then
+        GameTooltip:AddLine("The server restarted " .. FormatSpan(time() - DB.restartAt) .. " ago (" ..
+          (DB.restartRoute == "server uptime" and "from the server uptime" or ("noticed at " .. tostring(DB.restartRoute))) ..
+          "). Not seen since, so this time may be off by up to 3 min.", 1, 0.67, 0.2, 1)
       end
       if r.flipFrom then
         GameTooltip:AddLine("Right-click: reverse to " .. (Flipped(r) and RouteName(r) or FlipName(r)), 0.2, 1, 0.8)
@@ -1004,20 +1190,18 @@ local OB_OK, OB_ERR = pcall(function ()
     if r.far and not seenState[r.entry] and not Flipped(r) and not AtHome(r) then
       local fly, sail = FlyBy(r)
       if not fly then return RowName(r), nil, nil, "|cff888888not measured yet|r" end
+      local mark = Mark(r)
       if fly <= 0 then
-        return RowName(r), "fly", 0, "|cff888888~|r|cffff5555fly now|r |cff777777sails " .. FormatTime(sail) .. "|r"
+        return RowName(r), "fly", 0, mark .. "|cffff5555fly now|r |cff777777sails " .. FormatTime(sail) .. "|r"
       end
       local color = "|cffffffff"
       if CFG.alert > 0 and fly <= CFG.alert then color = "|cffffaa33" end
-      return RowName(r), "fly", fly, "|cff888888~|r|cffaaaaaafly|r " .. color .. FormatTime(fly) ..
+      return RowName(r), "fly", fly, mark .. "|cffaaaaaafly|r " .. color .. FormatTime(fly) ..
         "|r |cff777777sails " .. FormatTime(sail) .. "|r"
     end
     local state, secs = Status(r)
-    local est = confirmed[r.entry] and "" or "|cff888888~|r"
+    local est = Mark(r)
     local nm = RowName(r)
-    if Flipped(r) then
-      if not (confirmed[r.entry] and FarKnown(r)) then est = "|cff888888~|r" end
-    end
     if state == "docked" then
       if secs then
         return nm, state, secs, est .. "|cff55ff55leaves|r |cffffffff" .. FormatTime(secs) .. "|r"
@@ -1117,6 +1301,13 @@ local OB_OK, OB_ERR = pcall(function ()
       end
     else
       local txt, stale = CalAgeText()
+      for i = 1, table.getn(ROUTES) do
+        if Visible(ROUTES[i]) and Stale(ROUTES[i]) then
+          txt = "server restarted " .. FormatSpan(time() - DB.restartAt) .. " ago: ? = not seen since"
+          stale = true
+          break
+        end
+      end
       panel.foot:SetText((stale and "|cffffaa33" or "|cff777777") .. txt .. "" .. "|r")
     end
   end
@@ -1440,6 +1631,14 @@ local OB_OK, OB_ERR = pcall(function ()
       DB.lastCal = nil
       DB.lastObs = {}
       DB.pending = {}
+      DB.seenAt = {}
+      DB.restartAt = nil
+      DB.restartRoute = nil
+      DB.boot = nil
+      DB.bootPhase = {}
+      DB.bootPhaseBoot = {}
+      DB.bootTheory = nil
+      DB.corrected = {}
       cal = nil
       confirmed = {}
       seenState = {}

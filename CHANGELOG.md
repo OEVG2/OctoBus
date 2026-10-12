@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.3 (12 October 2026)
+
+### New
+- **Server restarts are handled.** OctoBus asks the server how long it has been up (`.server info`, sent quietly when you log in; its reply is hidden) and so knows exactly when the server restarted. Routes not seen since a restart are marked with an orange `?`, and the footer says when the restart was.
+- **Timers corrected from the restart time.** Each route docks a fixed number of seconds into its trip after a restart. OctoBus learns this once per route, and after a restart moves every route straight to the right time. Once this has been seen to hold across a restart, corrected routes lose the `?`.
+- The marks now mean: no mark = seen since the last restart (accurate), `~` = an estimate, `?` = may be off after a restart. Before, `~` only meant "not seen since you logged in".
+
+### Fixed
+- A sighting up to about 1.5 minutes off the schedule was taken as normal and could bend the learned trip length. Only differences that drift can explain are used now (10 s plus half a second per hour since the last sighting).
+
 ## 1.3.2 (12 October 2026)
 
 ### New
