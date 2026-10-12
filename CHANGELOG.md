@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.5 (12 October 2026)
+
+### New
+- **Accurate without the DLL.** OctoBus now ships with each route's restart offset (how many seconds into its trip it docks, counted from the last server restart), measured on 12 October. At every login it asks the server how long it has been up and sets every route it has not seen since that restart from the restart time plus the offset. A brand new copy with no DLL and no sightings gets every timer right from the first login, and stays right after later restarts.
+
 ## 1.3.4 (12 October 2026)
 
 ### Fixed

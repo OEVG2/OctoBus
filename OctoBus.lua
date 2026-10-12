@@ -71,25 +71,28 @@ local OB_OK, OB_ERR = pcall(function ()
     -- ~5 h (origin = first sighting, anchor = latest), stay at the dock, and where measured
     -- on a ride, the far end (flipOffset = seconds after docking here that it docks there).
     -- A new copy refines all of this from its own sightings.
+    -- period = trip length measured over 3 days (400-900 trips). bootPhase = seconds into
+    -- each trip at which it docks here, counted from the server's last restart (measured
+    -- 12 Oct 2026): with the server uptime this gives every timer without any sighting.
     { entry = 164871, homeZ = ORG, awayZ = { "Tirisfal Glades", "Undercity" },
       name = "Undercity", kind = "zeppelin", x = 1318.1, y = -4658.0,
-      period = 356.2894, dwell = 64.0, origin = 1791471571.34, anchor = 1791489385.64,
+      period = 356.2894, bootPhase = 211.9, dwell = 64.0, origin = 1791471571.34, anchor = 1791489385.64,
       flipFrom = "Undercity", flipTo = "Orgrimmar", flipOffset = 191.1, flipDwell = 64.0 },
     { entry = 175080, homeZ = ORG, awayZ = { "Stranglethorn Vale" },
       name = "Grom'gol", kind = "zeppelin", x = 1360.8, y = -4631.3,
-      period = 303.4377, dwell = 64.1, origin = 1791471600.26, anchor = 1791489504.28,
+      period = 303.4377, bootPhase = 55.0, dwell = 64.1, origin = 1791471600.26, anchor = 1791489504.28,
       flipFrom = "Grom'gol", flipTo = "Orgrimmar", flipOffset = 138.2, flipDwell = 64.1 },
     { entry = 190552, homeZ = ORG, awayZ = { "Badlands" },
       name = "Kargath", kind = "zeppelin", x = 1206.1, y = -4158.7,
-      period = 373.9861, dwell = 63.9, origin = 1791471857.57, anchor = 1791489438.99,
+      period = 373.9861, bootPhase = 227.4, dwell = 63.9, origin = 1791471857.57, anchor = 1791489438.99,
       flipFrom = "Kargath", flipTo = "Orgrimmar", flipOffset = 198.0, flipDwell = 64.2 },
     { entry = 190549, homeZ = ORG, awayZ = { "Mulgore", "Thunder Bluff" },
       name = "Thunder Bluff", kind = "zeppelin", x = 1125.4, y = -4135.0,
-      period = 566.9955, dwell = 64.2, origin = 1791472003.14, anchor = 1791490140.28,
+      period = 566.9955, bootPhase = 334.5, dwell = 64.2, origin = 1791472003.14, anchor = 1791490140.28,
       flipFrom = "Thunder Bluff", flipTo = "Orgrimmar", flipOffset = 275.8, flipDwell = 64.0 },
     { entry = 190550, homeZ = ORG, awayZ = { "The Hinterlands" },
       name = "Sparkwater", kind = "boat", x = 876.1, y = -5204.1, boat = true,
-      period = 245.0354, dwell = 44.1, origin = 1791471573.69, anchor = 1791489460.91,
+      period = 245.0354, bootPhase = 168.6, dwell = 44.1, origin = 1791471573.69, anchor = 1791489460.91,
       flipFrom = "Revantusk", flipTo = "Sparkwater", flipOffset = 123.2, flipDwell = 44.0 },
     -- Grom'gol <-> Undercity zeppelin, timed at the Grom'gol dock (the only end measured).
     -- Seen leaving Grom'gol 1791480459.89 and arriving 1791486390.25: 18 cycles of 333.02 s
@@ -97,7 +100,7 @@ local OB_OK, OB_ERR = pcall(function ()
     -- is learned on the first ride from Grom'gol.
     { entry = 176495, homeZ = { "Stranglethorn Vale" }, awayZ = { "Tirisfal Glades", "Undercity" },
       name = "Undercity", kind = "zeppelin", x = -12406.9, y = 211.8,
-      period = 333.0015, dwell = 64.0, origin = 1791480395.89, anchor = 1791486390.25,
+      period = 333.0015, bootPhase = 57.2, dwell = 64.0, origin = 1791480395.89, anchor = 1791486390.25,
       flipFrom = "Undercity", flipTo = "Grom'gol" },
     -- Ratchet -> Booty Bay boat, timed at the Ratchet dock. Never visible from Orgrimmar, so
     -- the row shows when to fly out ("fly") rather than when it docks. Ratchet arrivals
@@ -105,7 +108,7 @@ local OB_OK, OB_ERR = pcall(function ()
     -- two days' rides: docks 178.6 s after Ratchet, stays 64.2 s.
     { entry = 20808, homeZ = { "Ratchet" }, awayZ = { "Stranglethorn Vale" }, planZ = ORG,
       name = "Ratchet", kind = "boat", x = -1005.6, y = -3841.6, far = true,
-      period = 364.0298, dwell = 63.7, origin = 1791479926.67, anchor = 1791490117.34,
+      period = 364.0298, bootPhase = 234.0, dwell = 63.7, origin = 1791479926.67, anchor = 1791490117.34,
       flipFrom = "Booty Bay", flipTo = "Ratchet", flipOffset = 178.6, flipDwell = 64.2 },
   }
 
@@ -480,33 +483,43 @@ local OB_OK, OB_ERR = pcall(function ()
     DB.bootPhaseBoot[e] = DB.boot
   end
 
+  local function Phase(r) return DB.bootPhase[r.entry] or r.bootPhase end
+
   local function OnBoot(boot)
     local old = DB.boot or DB.bootPrev
     DB.boot = boot
     DB.bootPrev = nil
-    if old and math.abs(boot - old) > 300 then
+    local restarted = old and math.abs(boot - old) > 300
+    if restarted then
       -- the server restarted at 'boot': every route seen before then is off
       DB.restartAt = boot
       DB.restartRoute = "server uptime"
-      for i = 1, table.getn(ROUTES) do
-        local r = ROUTES[i]
-        local e = r.entry
-        local P = Period(r)
-        if DB.bootPhase[e] and P and P > 0 and (DB.seenAt[e] or 0) < boot then
-          DB.anchor[e] = boot + DB.bootPhase[e]
-          DB.pW0[e] = (DB.pW0[e] or 0) + (DB.pK[e] or 0)
+    elseif DB.restartAt and DB.restartAt > boot then
+      -- same server run: a restart noticed earlier from a jump happened at 'boot'
+      DB.restartAt = boot
+    end
+    -- every route not seen since this restart is put at restart time + its offset (learned,
+    -- or built in), also on a new copy's very first login
+    for i = 1, table.getn(ROUTES) do
+      local r = ROUTES[i]
+      local e = r.entry
+      local P = Period(r)
+      local c = Phase(r)
+      if c and P and P > 0 and (DB.seenAt[e] or 0) < boot then
+        DB.anchor[e] = boot + c
+        if not DB.origin[e] or DB.origin[e] < boot then
+          -- the stored schedule is from an earlier server run: start this run's
+          -- measurement here, keeping the trip length and the evidence behind it
+          DB.pW0[e] = (DB.pW0[e] or 700) + (DB.pK[e] or 0)
           DB.pP0[e] = P
           DB.pK[e] = 0
           DB.origin[e] = DB.anchor[e]
           DB.pending[e] = nil
           DB.lastObs[e] = nil
-          DB.corrected[e] = boot
-          if DB.bootTheory then DB.seenAt[e] = boot end   -- corrected: "~" instead of "?"
         end
+        DB.corrected[e] = boot
+        if restarted and DB.bootTheory then DB.seenAt[e] = boot end   -- "~" instead of "?"
       end
-    else
-      -- same server run: a restart noticed earlier from a jump happened at 'boot'
-      if DB.restartAt and DB.restartAt > boot then DB.restartAt = boot end
     end
     -- learn offsets from routes already seen since this restart
     for i = 1, table.getn(ROUTES) do
@@ -630,7 +643,7 @@ local OB_OK, OB_ERR = pcall(function ()
       if k >= 1 and math.abs(resid) < tol then
         -- trip length = all evidence weighted by trips covered: earlier server runs
         -- (pP0 over pW0 trips) plus this run (delta over k trips)
-        local W0 = DB.pW0[e] or 0
+        local W0 = DB.pW0[e] or 700   -- the built-in trip length: ~700 trips measured
         local P0 = DB.pP0[e] or P
         DB.period[e] = (P0 * W0 + delta) / (W0 + k)
         DB.pK[e] = k
@@ -649,7 +662,7 @@ local OB_OK, OB_ERR = pcall(function ()
         end
         if fits then
           -- a new server run: keep the trip length and how much evidence is behind it
-          DB.pW0[e] = (DB.pW0[e] or 0) + (DB.pK[e] or 0)
+          DB.pW0[e] = (DB.pW0[e] or 700) + (DB.pK[e] or 0)
           DB.pP0[e] = Period(r)
           DB.pK[e] = 0
           DB.origin[e] = pd
