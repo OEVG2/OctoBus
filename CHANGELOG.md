@@ -12,6 +12,7 @@
 - The footer no longer names the route with the oldest data (the restart correction makes it unnecessary). It only appears after a server restart, while a route in the window has not been seen since.
 
 ### Fixed
+- The 1.3.4 one-time repair of saved trip lengths never actually ran (it ran before the game loaded the saved data), so copies used before 1.3.4 kept wrong trip lengths and drifted by up to a minute, e.g. Grom'gol about 45 seconds slow after 11 hours.
 - The settings window needed two right-clicks to open, and some checkboxes on a shared line (outline, sound) toggled their neighbour.
 - Window size, look, lock, position and the minimap icon's spot were not restored after logging in: they were applied before the game had loaded the saved settings.
 

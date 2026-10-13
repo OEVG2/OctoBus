@@ -184,7 +184,10 @@ local OB_OK, OB_ERR = pcall(function ()
   -- One-time repair (1.3.4): restarts used to re-measure trip lengths from only a few
   -- trips, throwing away days of evidence. Restore the long-term values (built in now),
   -- count them as 700 trips of evidence, and recompute the restart offsets with them.
-  if not DB.fix134 then
+  -- Runs once the saved data is loaded (VARIABLES_LOADED below): this file runs before
+  -- that, so a repair here alone would only touch a temporary empty table.
+  local function Repair134()
+    if DB.fix134 then return end
     for i = 1, table.getn(ROUTES) do
       local r = ROUTES[i]
       local e = r.entry
@@ -1812,6 +1815,7 @@ local OB_OK, OB_ERR = pcall(function ()
     local f = CreateFrame("Frame")
     f:RegisterEvent("VARIABLES_LOADED")
     f:SetScript("OnEvent", function()
+      Repair134()
       panel:SetScale(CFG.scale or 1)
       ApplyLook()
       if CFG.locked then grip:Hide() else grip:Show() end
