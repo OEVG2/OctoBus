@@ -72,28 +72,30 @@ local OB_OK, OB_ERR = pcall(function ()
     -- ~5 h (origin = first sighting, anchor = latest), stay at the dock, and where measured
     -- on a ride, the far end (flipOffset = seconds after docking here that it docks there).
     -- A new copy refines all of this from its own sightings.
-    -- period = trip length measured over 3 days (400-900 trips). bootPhase = seconds into
-    -- each trip at which it docks here, counted from the server's last restart (measured
-    -- 12 Oct 2026): with the server uptime this gives every timer without any sighting.
+    -- period = trip length, measured against the restart time over two server runs of
+    -- 15-43 hours (13-14 Oct 2026). bootPhase = seconds into each trip at which it docks
+    -- here, counted from the server's restart, as measured in the run that began 14 Oct
+    -- 2026. It shifts by seconds (or, for some routes, minutes) at each restart, so it is
+    -- only a first guess; shared sightings (below) correct it.
     { entry = 164871, homeZ = ORG, awayZ = { "Tirisfal Glades", "Undercity" },
       name = "Undercity", kind = "zeppelin", x = 1318.1, y = -4658.0,
-      period = 356.2894, bootPhase = 211.9, dwell = 64.0, origin = 1791471571.34, anchor = 1791489385.64,
+      period = 356.2806, bootPhase = 220.3, dwell = 64.0, origin = 1791471571.34, anchor = 1791489385.64,
       flipFrom = "Undercity", flipTo = "Orgrimmar", flipOffset = 191.1, flipDwell = 64.0 },
     { entry = 175080, homeZ = ORG, awayZ = { "Stranglethorn Vale" },
       name = "Grom'gol", kind = "zeppelin", x = 1360.8, y = -4631.3,
-      period = 303.4377, bootPhase = 55.0, dwell = 64.1, origin = 1791471600.26, anchor = 1791489504.28,
+      period = 303.4592, bootPhase = 227.8, dwell = 64.1, origin = 1791471600.26, anchor = 1791489504.28,
       flipFrom = "Grom'gol", flipTo = "Orgrimmar", flipOffset = 138.2, flipDwell = 64.1 },
     { entry = 190552, homeZ = ORG, awayZ = { "Badlands" },
       name = "Kargath", kind = "zeppelin", x = 1206.1, y = -4158.7,
-      period = 373.9861, bootPhase = 227.4, dwell = 63.9, origin = 1791471857.57, anchor = 1791489438.99,
+      period = 374.0474, bootPhase = 235.3, dwell = 63.9, origin = 1791471857.57, anchor = 1791489438.99,
       flipFrom = "Kargath", flipTo = "Orgrimmar", flipOffset = 198.0, flipDwell = 64.2 },
     { entry = 190549, homeZ = ORG, awayZ = { "Mulgore", "Thunder Bluff" },
       name = "Thunder Bluff", kind = "zeppelin", x = 1125.4, y = -4135.0,
-      period = 566.9955, bootPhase = 334.5, dwell = 64.2, origin = 1791472003.14, anchor = 1791490140.28,
+      period = 566.7573, bootPhase = 350.5, dwell = 64.2, origin = 1791472003.14, anchor = 1791490140.28,
       flipFrom = "Thunder Bluff", flipTo = "Orgrimmar", flipOffset = 275.8, flipDwell = 64.0 },
     { entry = 190550, homeZ = ORG, awayZ = { "The Hinterlands" },
       name = "Sparkwater", kind = "boat", x = 876.1, y = -5204.1, boat = true,
-      period = 245.0354, bootPhase = 168.6, dwell = 44.1, origin = 1791471573.69, anchor = 1791489460.91,
+      period = 245.0314, bootPhase = 187.5, dwell = 44.1, origin = 1791471573.69, anchor = 1791489460.91,
       flipFrom = "Revantusk", flipTo = "Sparkwater", flipOffset = 123.2, flipDwell = 44.0 },
     -- Grom'gol <-> Undercity zeppelin, timed at the Grom'gol dock (the only end measured).
     -- Seen leaving Grom'gol 1791480459.89 and arriving 1791486390.25: 18 cycles of 333.02 s
@@ -101,7 +103,7 @@ local OB_OK, OB_ERR = pcall(function ()
     -- is learned on the first ride from Grom'gol.
     { entry = 176495, homeZ = { "Stranglethorn Vale" }, awayZ = { "Tirisfal Glades", "Undercity" },
       name = "Undercity", kind = "zeppelin", x = -12406.9, y = 211.8,
-      period = 333.0015, bootPhase = 57.2, dwell = 64.0, origin = 1791480395.89, anchor = 1791486390.25,
+      period = 333.0015, bootPhase = 69.0, dwell = 64.0, origin = 1791480395.89, anchor = 1791486390.25,
       flipFrom = "Undercity", flipTo = "Grom'gol" },
     -- Ratchet -> Booty Bay boat, timed at the Ratchet dock. Never visible from Orgrimmar, so
     -- the row shows when to fly out ("fly") rather than when it docks. Ratchet arrivals
@@ -109,7 +111,7 @@ local OB_OK, OB_ERR = pcall(function ()
     -- two days' rides: docks 178.6 s after Ratchet, stays 64.2 s.
     { entry = 20808, homeZ = { "Ratchet" }, awayZ = { "Stranglethorn Vale" }, planZ = ORG,
       name = "Ratchet", kind = "boat", x = -1005.6, y = -3841.6, far = true,
-      period = 364.0298, bootPhase = 234.0, dwell = 63.7, origin = 1791479926.67, anchor = 1791490117.34,
+      period = 364.0298, bootPhase = 51.8, dwell = 63.7, origin = 1791479926.67, anchor = 1791490117.34,
       flipFrom = "Booty Bay", flipTo = "Ratchet", flipOffset = 178.6, flipDwell = 64.2 },
   }
 
@@ -162,6 +164,8 @@ local OB_OK, OB_ERR = pcall(function ()
       t.pW0 = t.pW0 or {}
       t.pP0 = t.pP0 or {}
       t.pK = t.pK or {}
+      t.src = t.src or {}
+      if c.share == nil then c.share = true end
       if c.ver ~= 2 then   -- v2: alerts are opt-in per route (bell) and chat-only by default
         c.ver = 2
         c.chat = true
@@ -207,6 +211,25 @@ local OB_OK, OB_ERR = pcall(function ()
       end
     end
     DB.fix134 = true
+  end
+
+  -- One-time update (1.3.6): new trip lengths measured against the restart time over two
+  -- long server runs; offsets learned with the old lengths are dropped.
+  local function Repair136()
+    if DB.fix136 then return end
+    for i = 1, table.getn(ROUTES) do
+      local r = ROUTES[i]
+      local e = r.entry
+      DB.period[e] = r.period
+      DB.pP0[e] = r.period
+      DB.pW0[e] = 700
+      if DB.origin[e] and DB.anchor[e] then
+        DB.pK[e] = math.floor((DB.anchor[e] - DB.origin[e]) / r.period + 0.5)
+      end
+      DB.bootPhase[e] = nil
+      DB.bootPhaseBoot[e] = nil
+    end
+    DB.fix136 = true
   end
 
   local function Say(msg)
@@ -572,6 +595,7 @@ local OB_OK, OB_ERR = pcall(function ()
   -- drift can explain (10 s + 0.5 s per hour since it was last seen) means the server
   -- restarted: every transport's schedule starts over. Routes not seen since are flagged
   -- until they are seen again. newAnchor = the home arrival time this sighting implies.
+  local ShareSighting   -- set further down (sharing with other OctoBus users)
   local function NoteSighting(r, newAnchor)
     local e = r.entry
     local P = Period(r)
@@ -600,6 +624,13 @@ local OB_OK, OB_ERR = pcall(function ()
     DB.seenAt[e] = time()
     DB.corrected[e] = nil
     LearnPhase(r, newAnchor)
+    -- sighting log for measuring drift over long server runs (route, home arrival time
+    -- this sighting implies, time seen, server start); the last 3000 are kept
+    if type(DB.slog) ~= "table" then DB.slog = {} end
+    table.insert(DB.slog, e .. "," .. string.format("%.2f", newAnchor) .. "," .. time() .. "," .. (DB.boot or 0))
+    if table.getn(DB.slog) > 3000 then table.remove(DB.slog, 1) end
+    DB.src[e] = "dll"
+    if ShareSighting then ShareSighting() end
   end
 
   local function Stale(r)
@@ -1816,12 +1847,141 @@ local OB_OK, OB_ERR = pcall(function ()
     f:RegisterEvent("VARIABLES_LOADED")
     f:SetScript("OnEvent", function()
       Repair134()
+      Repair136()
       panel:SetScale(CFG.scale or 1)
       ApplyLook()
       if CFG.locked then grip:Hide() else grip:Show() end
       PlaceButton()
       PlacePanel()
     end)
+  end
+
+  ------------------------------------------------------------------------
+  -- Shared sightings. Every OctoBus joins a hidden chat channel. A copy with the DLL
+  -- posts the docking times it has seen in this server run; copies without it take them
+  -- and are exact too, instead of relying on the restart offsets (which shift by seconds
+  -- or minutes at each restart). Times are sent as seconds since the server restart, so
+  -- differences between players' PC clocks do not matter. Nothing shows in chat.
+  -- Message: "OB1 S <entry>:<seconds since restart> ..." (sightings), "OB1 R" (request).
+  ------------------------------------------------------------------------
+  do
+    local CHANNEL = "OctoBusSync"
+    local byEntry = {}
+    for i = 1, table.getn(ROUTES) do byEntry[ROUTES[i].entry] = ROUTES[i] end
+    local lastSent, replyAt, joinAt, asked = 0, nil, nil, false
+
+    local function ChannelId()
+      local id = GetChannelName(CHANNEL)
+      if id and id > 0 then return id end
+      return nil
+    end
+    local function IsOurs(name)
+      return name and string.find(string.lower(name), string.lower(CHANNEL), 1, true) ~= nil
+    end
+
+    -- this run's docking times, as seconds since the restart; own = only DLL sightings
+    local function Payload(own)
+      if not DB.boot then return nil end
+      local parts = {}
+      for i = 1, table.getn(ROUTES) do
+        local e = ROUTES[i].entry
+        local a = DB.anchor[e]
+        if a and a > DB.boot and (DB.seenAt[e] or 0) > DB.boot and (DB.src[e] == "dll" or (not own and DB.src[e] == "shared")) then
+          table.insert(parts, e .. ":" .. string.format("%.1f", a - DB.boot))
+        end
+      end
+      if table.getn(parts) == 0 then return nil end
+      return "OB1 S " .. table.concat(parts, " ")
+    end
+
+    local function Send(msg)
+      local id = ChannelId()
+      if id and msg and CFG.share then SendChatMessage(msg, "CHANNEL", nil, id) end
+    end
+
+    -- own sighting: post at most once a minute
+    ShareSighting = function()
+      if GetTime() - lastSent < 60 then return end
+      local msg = Payload(true)
+      if msg then lastSent = GetTime() Send(msg) end
+    end
+
+    local function Take(e, rel)
+      local r = byEntry[e]
+      if not r or not DB.boot or not CFG.share then return end
+      if rel < 0 or rel > time() - DB.boot + 600 then return end
+      -- our own DLL sighting in this run wins
+      if DB.src[e] == "dll" and (DB.seenAt[e] or 0) > DB.boot then return end
+      local a = DB.boot + rel
+      if DB.src[e] == "shared" and DB.anchor[e] and math.abs(DB.anchor[e] - a) < 0.5 then return end
+      local P = Period(r)
+      DB.anchor[e] = a
+      if not DB.origin[e] or DB.origin[e] < DB.boot then
+        DB.pW0[e] = (DB.pW0[e] or 700) + (DB.pK[e] or 0)
+        DB.pP0[e] = P
+        DB.pK[e] = 0
+        DB.origin[e] = a
+        DB.pending[e] = nil
+        DB.lastObs[e] = nil
+      end
+      DB.seenAt[e] = time()
+      DB.corrected[e] = nil
+      DB.src[e] = "shared"
+    end
+
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("CHAT_MSG_CHANNEL")
+    f:SetScript("OnEvent", function()
+      if event == "PLAYER_ENTERING_WORLD" then
+        if not joinAt and not ChannelId() then joinAt = GetTime() + 8 end
+        return
+      end
+      if not IsOurs(arg9) and not IsOurs(arg4) then return end
+      if arg2 == UnitName("player") then return end
+      local msg = arg1 or ""
+      if string.sub(msg, 1, 6) == "OB1 S " then
+        for e, rel in gfind(msg, "(%d+):([%d%.]+)") do Take(tonumber(e), tonumber(rel)) end
+        replyAt = nil   -- someone else answered
+      elseif msg == "OB1 R" then
+        if Payload(false) then replyAt = GetTime() + 2 + math.random() * 6 end
+      end
+    end)
+    f:SetScript("OnUpdate", function()
+      local now = GetTime()
+      if joinAt and now >= joinAt then
+        joinAt = nil
+        if CFG.share then JoinChannelByName(CHANNEL) end
+        for i = 1, (NUM_CHAT_WINDOWS or 7) do
+          local cf = getglobal("ChatFrame" .. i)
+          if cf and ChatFrame_RemoveChannel then pcall(ChatFrame_RemoveChannel, cf, CHANNEL) end
+        end
+      end
+      -- once the restart time is known, ask for this run's sightings
+      if not asked and DB.boot and ChannelId() then
+        asked = true
+        Send("OB1 R")
+      end
+      if replyAt and now >= replyAt then
+        replyAt = nil
+        Send(Payload(false))
+      end
+      -- copies with the DLL repeat what they have seen every 5 minutes
+      if dllOk and now - lastSent > 300 then
+        local msg = Payload(true)
+        if msg then lastSent = now Send(msg) end
+      end
+    end)
+
+    -- keep the channel and its join / leave notices out of every chat window
+    local prevChat = ChatFrame_OnEvent
+    ChatFrame_OnEvent = function(ev)
+      if (ev == "CHAT_MSG_CHANNEL" or ev == "CHAT_MSG_CHANNEL_NOTICE" or ev == "CHAT_MSG_CHANNEL_JOIN" or ev == "CHAT_MSG_CHANNEL_LEAVE")
+          and (IsOurs(arg9) or IsOurs(arg4)) then
+        return
+      end
+      return prevChat(ev)
+    end
   end
 
   -- for the settings window (OctoBusOptions.lua)

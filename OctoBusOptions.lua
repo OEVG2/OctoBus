@@ -83,7 +83,7 @@ local function Build()
   local C = OB.cfg
   frame = CreateFrame("Frame", "OctoBusOptions", UIParent)
   frame:SetWidth(W)
-  frame:SetHeight(676)
+  frame:SetHeight(700)
   frame:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
   frame:SetFrameStrata("DIALOG")
   frame:SetClampedToScreen(true)
@@ -159,13 +159,18 @@ local function Build()
     function(v) C.full = v OB.Refresh() end)
   Check("Show the Sparkwater Port boat", 14, -506, function() return not C.hideBoat end,
     function(v) C.hideBoat = not v OB.Refresh() end)
+  Check("Share timers with other OctoBus users", 14, -530, function() return C.share end,
+    function(v)
+      C.share = v
+      if v then JoinChannelByName("OctoBusSync") else LeaveChannelByName("OctoBusSync") end
+    end)
 
-  Heading("Alerts (click a row to put a bell on it)", -538)
-  Slider("Warn before arrival", -568, 10, 120, 5, function() return C.alert or 45 end,
+  Heading("Alerts (click a row to put a bell on it)", -562)
+  Slider("Warn before arrival", -592, 10, 120, 5, function() return C.alert or 45 end,
     function(v) C.alert = v end, function(v) return math.floor(v + 0.5) .. " s" end)
-  Check("Chat message", 14, -590, function() return C.chat end, function(v) C.chat = v end)
-  Check("Sound", 120, -590, function() return C.sound end, function(v) C.sound = v end)
-  Check("Flash the minimap icon", 14, -614, function() return C.flash end, function(v) C.flash = v end)
+  Check("Chat message", 14, -614, function() return C.chat end, function(v) C.chat = v end)
+  Check("Sound", 120, -614, function() return C.sound end, function(v) C.sound = v end)
+  Check("Flash the minimap icon", 14, -638, function() return C.flash end, function(v) C.flash = v end)
 
   local reset = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
   reset:SetWidth(150)

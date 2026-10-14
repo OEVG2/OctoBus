@@ -7,9 +7,13 @@
 
 - **Settings window**: `/ob options`, or right-click the minimap icon. Background opacity, window opacity, text size, text opacity, the gap between names and times, place colour vibrance, text outline (thin, thick or shadow), window size, lock, which corner stays put as the list grows or shrinks, auto-show, which routes to show, and bell alerts. Changes apply at once.
 
+- **Shared timers.** Copies with the DLL share the docking times they see over a hidden chat channel; copies without it use them, so one DLL user online keeps everyone exact. A copy that logs in asks for the current times. Can be turned off in the settings.
+
 ### Changed
 - The "no DLL: estimates only" note is gone from the panel: without the DLL the timers are now accurate. `/ob debug` still shows whether the DLL is loaded.
 - The footer no longer names the route with the oldest data (the restart correction makes it unnecessary). It only appears after a server restart, while a route in the window has not been seen since.
+- New trip lengths, measured against the restart time over two long server runs (15 and 43 hours). The old ones drifted by up to 1.5 seconds an hour (Thunder Bluff), so DLL-free timers were up to a minute off late in a long run. Existing copies are updated once.
+- Restart offsets updated to the latest server run. They turned out to shift at each restart, by 3-18 seconds for most routes and by minutes for Grom'gol and Ratchet, so they are now only a first guess until shared or seen.
 
 ### Fixed
 - The 1.3.4 one-time repair of saved trip lengths never actually ran (it ran before the game loaded the saved data), so copies used before 1.3.4 kept wrong trip lengths and drifted by up to a minute, e.g. Grom'gol about 45 seconds slow after 11 hours.
