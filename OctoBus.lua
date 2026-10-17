@@ -909,16 +909,18 @@ local OB_OK, OB_ERR = pcall(function ()
   local font = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
   local anchorTo = Minimap
 
-  -- flat dark panel with a thin border
+  -- classic Blizzard tooltip-style panel: dark blue fill, silver rounded border
+  local BG_R, BG_G, BG_B = 0.09, 0.09, 0.19      -- TOOLTIP_DEFAULT_BACKGROUND_COLOR
+  local BD_R, BD_G, BD_B = 1, 1, 1               -- TOOLTIP_DEFAULT_COLOR
   local function CreateBackdrop(f)
     f:SetBackdrop({
-      bgFile = "Interface\\Buttons\\WHITE8X8",
-      edgeFile = "Interface\\Buttons\\WHITE8X8",
-      tile = false, tileSize = 0, edgeSize = 1,
-      insets = { left = 1, right = 1, top = 1, bottom = 1 },
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 16,
+      insets = { left = 4, right = 4, top = 4, bottom = 4 },
     })
-    f:SetBackdropColor(0.02, 0.02, 0.02, 0.75)
-    f:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
+    f:SetBackdropColor(BG_R, BG_G, BG_B, 0.75)
+    f:SetBackdropBorderColor(BD_R, BD_G, BD_B, 1)
   end
 
   -- square or round minimap? "auto" looks at the minimap: the stock UI keeps it inside
@@ -988,7 +990,7 @@ local OB_OK, OB_ERR = pcall(function ()
   local textScale = CFG.textScale or 1
   local WIDTH = math.floor(280 * textScale * (CFG.widthScale or 1) + 0.5)
   local ROW_H = math.floor(18 * textScale + 0.5)
-  local TOP = math.floor(22 * textScale + 0.5)
+  local TOP = math.floor(26 * textScale + 0.5)
 
   local panel = CreateFrame("Frame", "OctoBusPanel", UIParent)
   panel:SetFrameStrata("MEDIUM")
@@ -1001,18 +1003,19 @@ local OB_OK, OB_ERR = pcall(function ()
   CreateBackdrop(panel)
 
   panel.title = panel:CreateFontString(nil, "OVERLAY")
-  panel.title:SetFont(font, 10, "OUTLINE")
-  panel.title:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -6)
-  panel.title:SetText("|cff33ffccTransports|r")
+  panel.title:SetFont(font, 10)
+  panel.title:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -9)
+  panel.title:SetTextColor(1, 0.82, 0)
+  panel.title:SetText("Transports")
 
   panel.status = panel:CreateFontString(nil, "OVERLAY")
-  panel.status:SetFont(font, 9, "OUTLINE")
-  panel.status:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, -7)
+  panel.status:SetFont(font, 9)
+  panel.status:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -10, -10)
   panel.status:SetTextColor(0.6, 0.6, 0.6)
 
   panel.foot = panel:CreateFontString(nil, "OVERLAY")
-  panel.foot:SetFont(font, 9, "OUTLINE")
-  panel.foot:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 4)
+  panel.foot:SetFont(font, 9)
+  panel.foot:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 10, 7)
   panel.foot:SetJustifyH("LEFT")
 
   -- The window is pinned by one corner (CFG.anchor, set in the settings window; default
@@ -1042,7 +1045,7 @@ local OB_OK, OB_ERR = pcall(function ()
 
   -- click the title: switch between all routes and routes for where you are
   local titleBtn = CreateFrame("Button", nil, panel)
-  titleBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -2)
+  titleBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 6, -5)
   titleBtn:SetWidth(150)
   titleBtn:SetHeight(16)
   titleBtn:RegisterForClicks("LeftButtonUp")
@@ -1064,7 +1067,7 @@ local OB_OK, OB_ERR = pcall(function ()
   local grip = CreateFrame("Frame", nil, panel)
   grip:SetWidth(14)
   grip:SetHeight(14)
-  grip:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -1, 1)
+  grip:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -3, 3)
   grip:SetFrameLevel(panel:GetFrameLevel() + 10)
   grip:EnableMouse(true)
   grip.dots = {}
@@ -1124,13 +1127,19 @@ local OB_OK, OB_ERR = pcall(function ()
 
   local rows = {}
 
-  -- text outline: "thin" (default), "thick", or "shadow" (thin outline plus a drop shadow)
+  -- text outline: "none" (default: the stock Blizzard drop shadow, no outline), "thin",
+  -- "thick", or "shadow" (thin outline plus a drop shadow)
   local function StyleText(fs, size)
-    local o = CFG.outline or "thin"
-    fs:SetFont(font, size, o == "thick" and "THICKOUTLINE" or "OUTLINE")
+    local o = CFG.outline or "none"
+    local flags = ""
+    if o == "thick" then flags = "THICKOUTLINE" elseif o ~= "none" then flags = "OUTLINE" end
+    fs:SetFont(font, size, flags)
     if o == "shadow" then
       fs:SetShadowColor(0, 0, 0, 1)
       fs:SetShadowOffset(1.5, -1.5)
+    elseif o == "none" then
+      fs:SetShadowColor(0, 0, 0, 1)
+      fs:SetShadowOffset(1, -1)
     else
       fs:SetShadowOffset(0, 0)
     end
@@ -1139,8 +1148,8 @@ local OB_OK, OB_ERR = pcall(function ()
   local function PlaceRow(row, i)
     row:SetHeight(ROW_H)
     row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -(TOP + (i - 1) * ROW_H))
-    row:SetPoint("RIGHT", panel, "RIGHT", -4, 0)
+    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 6, -(TOP + (i - 1) * ROW_H))
+    row:SetPoint("RIGHT", panel, "RIGHT", -6, 0)
     local fs = math.floor(10 * textScale + 0.5)
     if row.name then
       StyleText(row.name, fs)
@@ -1162,8 +1171,14 @@ local OB_OK, OB_ERR = pcall(function ()
 
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetAllPoints(row)
-    row.bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    row.bg:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    row.bg:SetBlendMode("ADD")
     row.bg:SetVertexColor(0, 0, 0, 0)
+
+    -- classic list hover glow
+    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    local hl = row:GetHighlightTexture()
+    if hl then hl:SetBlendMode("ADD") hl:SetAlpha(0.5) end
 
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetWidth(14)
@@ -1171,13 +1186,13 @@ local OB_OK, OB_ERR = pcall(function ()
     row.icon:SetPoint("LEFT", row, "LEFT", 2, 0)
 
     row.name = row:CreateFontString(nil, "OVERLAY")
-    row.name:SetFont(font, 10, "OUTLINE")
+    row.name:SetFont(font, 10)
     row.name:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
     row.name:SetJustifyH("LEFT")
 
 
     row.time = row:CreateFontString(nil, "OVERLAY")
-    row.time:SetFont(font, 10, "OUTLINE")
+    row.time:SetFont(font, 10)
     row.time:SetPoint("RIGHT", row, "RIGHT", -20, 0)
     row.time:SetJustifyH("RIGHT")
 
@@ -1270,13 +1285,13 @@ local OB_OK, OB_ERR = pcall(function ()
     local wa = CFG.alpha or 1
     local bg = CFG.bgAlpha or 0.75
     panel:SetAlpha(1)
-    panel:SetBackdropColor(0.02, 0.02, 0.02, bg * wa)
-    panel:SetBackdropBorderColor(0.22, 0.22, 0.22, math.min(1, bg + 0.25) * wa)
+    panel:SetBackdropColor(BG_R, BG_G, BG_B, bg * wa)
+    panel:SetBackdropBorderColor(BD_R, BD_G, BD_B, math.min(1, bg + 0.25) * wa)
     grip:SetAlpha(wa)
     textScale = CFG.textScale or 1
     WIDTH = math.floor(280 * textScale * (CFG.widthScale or 1) + 0.5)
     ROW_H = math.floor(18 * textScale + 0.5)
-    TOP = math.floor(22 * textScale + 0.5)
+    TOP = math.floor(26 * textScale + 0.5)
     panel:SetWidth(WIDTH)
     StyleText(panel.title, math.floor(10 * textScale + 0.5))
     StyleText(panel.status, math.floor(9 * textScale + 0.5))
@@ -1398,11 +1413,11 @@ local OB_OK, OB_ERR = pcall(function ()
         if state == "docked" then
           row.icon:SetTexture(ICON_HERE)
           row.icon:SetVertexColor(0.3, 1, 0.3)
-          row.bg:SetVertexColor(0.1, 0.5, 0.1, 0.35)
+          row.bg:SetVertexColor(0.2, 0.9, 0.2, 0.6)
         elseif state == "departing" then
           row.icon:SetTexture(ICON_HERE)
           row.icon:SetVertexColor(1, 0.82, 0)
-          row.bg:SetVertexColor(0.5, 0.4, 0, 0.3)
+          row.bg:SetVertexColor(1, 0.82, 0, 0.5)
         else
           row.icon:SetTexture(ICON_AWAY)
           if secs and CFG.alert > 0 and secs <= CFG.alert then
@@ -1421,10 +1436,10 @@ local OB_OK, OB_ERR = pcall(function ()
       local w = (rows[i].name:GetStringWidth() or 0) + (rows[i].time:GetStringWidth() or 0)
       if w > need then need = w end
     end
-    need = math.floor(need + 4 + 2 + 14 + 4 + 20 + 12 * textScale + 4)
+    need = math.floor(need + 6 + 2 + 14 + 4 + 20 + 12 * textScale + 6)
     panel:SetWidth(need > WIDTH and need or WIDTH)
-    panel:SetHeight(TOP + n * ROW_H + ((cal or (panel.foot:GetText() or "") ~= "") and math.floor(18 * textScale + 0.5) or 10))
-    panel.title:SetText("|cff33ffccTransports|r" .. (CFG.full and " |cff777777- all|r" or ""))
+    panel:SetHeight(TOP + n * ROW_H + ((cal or (panel.foot:GetText() or "") ~= "") and math.floor(20 * textScale + 0.5) or 12))
+    panel.title:SetText("Transports" .. (CFG.full and " |cff777777- all|r" or ""))
     if recOn then
       panel.status:SetText("|cffff4444REC|r " .. (type(DB.rec) == "table" and table.getn(DB.rec) or 0))
     else

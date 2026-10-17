@@ -4,26 +4,25 @@
 ]]
 
 local font = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-local W = 300
-local frame, controls = nil, {}
+local W = 330          -- content width; the frame adds the dialog border around it
+local PAD = 8
+local frame, body, controls = nil, nil, {}
 local loading = false
 
+-- the stock Blizzard dialog box: marbled dark background, gold-trimmed border
 local function Backdrop(f)
   f:SetBackdrop({
-    bgFile = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = "Interface\\Buttons\\WHITE8X8",
-    tile = false, tileSize = 0, edgeSize = 1,
-    insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 32,
+    insets = { left = 11, right = 12, top = 12, bottom = 11 },
   })
-  f:SetBackdropColor(0.02, 0.02, 0.02, 0.92)
-  f:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
 end
 
 local function Heading(text, y)
-  local fs = frame:CreateFontString(nil, "OVERLAY")
-  fs:SetFont(font, 11, "OUTLINE")
-  fs:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, y)
-  fs:SetText("|cff33ffcc" .. text .. "|r")
+  local fs = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  fs:SetPoint("TOPLEFT", body, "TOPLEFT", 12, y)
+  fs:SetText(text)
 end
 
 local sliderCount = 0
@@ -32,14 +31,13 @@ local function Slider(label, y, lo, hi, step, get, set, fmt)
   sliderCount = sliderCount + 1
   local name = "OctoBusOptionsSlider" .. sliderCount
   local s = CreateFrame("Slider", name, frame, "OptionsSliderTemplate")
-  s:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, y)
+  s:SetPoint("TOPLEFT", body, "TOPLEFT", 18, y)
   s:SetWidth(W - 36)
   s:SetMinMaxValues(lo, hi)
   s:SetValueStep(step)
   getglobal(name .. "Low"):SetText("")
   getglobal(name .. "High"):SetText("")
   local text = getglobal(name .. "Text")
-  text:SetFont(font, 10)
   s.Update = function()
     loading = true
     s:SetValue(get())
@@ -63,9 +61,8 @@ local function Check(label, x, y, get, set)
   local c = CreateFrame("CheckButton", name, frame, "OptionsCheckButtonTemplate")
   c:SetWidth(24)
   c:SetHeight(24)
-  c:SetPoint("TOPLEFT", frame, "TOPLEFT", x, y)
+  c:SetPoint("TOPLEFT", body, "TOPLEFT", x, y)
   local text = getglobal(name .. "Text")
-  text:SetFont(font, 10)
   text:SetText(label)
   -- the template makes the box clickable 100 px to its right, which reaches over the
   -- next box on the same line: limit the click area to the box and its own label
@@ -82,8 +79,8 @@ local function Build()
   local OB = OctoBus
   local C = OB.cfg
   frame = CreateFrame("Frame", "OctoBusOptions", UIParent)
-  frame:SetWidth(W)
-  frame:SetHeight(700)
+  frame:SetWidth(W + 2 * PAD)
+  frame:SetHeight(700 + 2 * PAD)
   frame:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
   frame:SetFrameStrata("DIALOG")
   frame:SetClampedToScreen(true)
@@ -95,13 +92,24 @@ local function Build()
   Backdrop(frame)
   table.insert(UISpecialFrames, "OctoBusOptions")   -- Escape closes it
 
-  local title = frame:CreateFontString(nil, "OVERLAY")
-  title:SetFont(font, 12, "OUTLINE")
-  title:SetPoint("TOP", frame, "TOP", 0, -10)
-  title:SetText("|cff33ffccOcto|rBus settings")
+  -- everything is laid out inside this, clear of the thick dialog border
+  body = CreateFrame("Frame", nil, frame)
+  body:SetPoint("TOPLEFT", frame, "TOPLEFT", PAD, -PAD)
+  body:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PAD, PAD)
+
+  -- gold title plate across the top edge, like the stock option windows
+  local header = frame:CreateTexture(nil, "ARTWORK")
+  header:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+  header:SetWidth(256)
+  header:SetHeight(64)
+  header:SetPoint("TOP", frame, "TOP", 0, 12)
+
+  local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOP", header, "TOP", 0, -14)
+  title:SetText("OctoBus Settings")
 
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-  close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
+  close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
   close:SetFrameLevel(frame:GetFrameLevel() + 5)
   close:SetScript("OnClick", function() frame:Hide() end)
 
@@ -114,15 +122,13 @@ local function Build()
   Slider("Text opacity", -178, 0, 1, 0.05, function() return C.textAlpha or 1 end, look("textAlpha"), pct)
   Slider("Gap between names and times", -216, 0.6, 1.6, 0.05, function() return C.widthScale or 1 end, look("widthScale"), pct)
   Slider("Place colour vibrance", -254, 0.2, 1, 0.05, function() return C.vibrance or 0.75 end, look("vibrance"), pct)
-  local outl = frame:CreateFontString(nil, "OVERLAY")
-  outl:SetFont(font, 10)
-  outl:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -284)
+  local outl = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  outl:SetPoint("TOPLEFT", body, "TOPLEFT", 18, -284)
   outl:SetText("Text outline:")
-  outl:SetTextColor(1, 0.82, 0)
-  local OUTLINES = { { "thin", "Thin", 96 }, { "thick", "Thick", 156 }, { "shadow", "Shadow", 222 } }
+  local OUTLINES = { { "none", "None", 92 }, { "thin", "Thin", 152 }, { "thick", "Thick", 206 }, { "shadow", "Shadow", 264 } }
   for i = 1, table.getn(OUTLINES) do
     local key = OUTLINES[i][1]
-    Check(OUTLINES[i][2], OUTLINES[i][3], -278, function() return (C.outline or "thin") == key end,
+    Check(OUTLINES[i][2], OUTLINES[i][3], -278, function() return (C.outline or "none") == key end,
       function()
         C.outline = key
         OB.ApplyLook()
@@ -134,11 +140,9 @@ local function Build()
   Check("Lock position and size", 14, -342, function() return C.locked end, function(v) OB.SetLocked(v) end)
 
   -- which corner stays in place when the list gets longer or shorter
-  local corner = frame:CreateFontString(nil, "OVERLAY")
-  corner:SetFont(font, 10)
-  corner:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -372)
+  local corner = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  corner:SetPoint("TOPLEFT", body, "TOPLEFT", 18, -372)
   corner:SetText("Corner that stays put as the list grows or shrinks:")
-  corner:SetTextColor(1, 0.82, 0)
   local CORNERS = {
     { "TOPLEFT", "Top left", 14, -386 }, { "TOPRIGHT", "Top right", 150, -386 },
     { "BOTTOMLEFT", "Bottom left", 14, -410 }, { "BOTTOMRIGHT", "Bottom right", 150, -410 },
@@ -175,7 +179,7 @@ local function Build()
   local reset = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
   reset:SetWidth(150)
   reset:SetHeight(20)
-  reset:SetPoint("BOTTOM", frame, "BOTTOM", 0, 12)
+  reset:SetPoint("BOTTOM", body, "BOTTOM", 0, 12)
   reset:SetText("Reset window look")
   reset:SetScript("OnClick", function()
     C.bgAlpha, C.alpha, C.textScale, C.textAlpha, C.widthScale, C.vibrance, C.outline = nil, nil, nil, nil, nil, nil, nil
