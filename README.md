@@ -1,6 +1,6 @@
 # OctoBus
 
-Arrival timers for the Horde zeppelins and boats, for the vanilla 1.12.1 client (tested on OctoWow / Turtle WoW).
+Arrival timers for the Horde zeppelins and boats, for the vanilla 1.12.1 client (tested on WoW 1.18.1 clients).
 
 Each row reads **start -> end**, for example `Orgrimmar -> Undercity`, with a live timer for the start: how long until it **leaves** if it is docked there, or how long until it **docks** there if it is away. Right-click a row to reverse it (`Undercity -> Orgrimmar`, timed at Undercity). For the Ratchet boat, seen from Orgrimmar, it shows when to **fly** to make the next sailing. Click a row to put a bell on it and get a chat message shortly before it arrives (or, for the Ratchet boat, shortly before you need to fly).
 
