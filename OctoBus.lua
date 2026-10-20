@@ -909,9 +909,11 @@ local OB_OK, OB_ERR = pcall(function ()
   local font = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
   local anchorTo = Minimap
 
-  -- classic Blizzard tooltip-style panel: dark blue fill, silver rounded border
-  local BG_R, BG_G, BG_B = 0.09, 0.09, 0.19      -- TOOLTIP_DEFAULT_BACKGROUND_COLOR
-  local BD_R, BD_G, BD_B = 1, 1, 1               -- TOOLTIP_DEFAULT_COLOR
+  -- classic Blizzard tooltip-style panel with a silver rounded border. Colors are
+  -- Bagshui's default windowBackground / windowBorder (also used by SoulstoneTracker),
+  -- a neutral dark fill instead of the navy tooltip tint, so the windows match.
+  local BG_R, BG_G, BG_B = 0.090, 0.085, 0.090
+  local BD_R, BD_G, BD_B = 0.900, 0.850, 0.900
   local function CreateBackdrop(f)
     f:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
